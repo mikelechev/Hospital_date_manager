@@ -90,7 +90,7 @@ class AgendaInteligente:
             )
 
 
-# --- 3. MODELOS DE DATOS ---
+# --- 3. MODELOS DE DATOS ---1
 class PeticionCita(BaseModel):
     nombre: str
     hora: str
