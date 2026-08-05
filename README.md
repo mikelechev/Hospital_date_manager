@@ -35,6 +35,7 @@ In other words, the system only doubles a slot when the risk of both patients ar
 | `api.py` | Basic FastAPI demo with manual absence probability input and a small HTML dashboard. |
 | `api_2.py` | Main ML-backed FastAPI version. Loads `modelo_campeon.json`, predicts absence probability, and applies smart-slotting rules. |
 | `api_mejorada.py` | Alternative improved API/dashboard version with similar XGBoost prediction flow. |
+| `api_chatbot.py` | Chatbot-driven app. The patient talks naturally, an LLM extracts model fields, and the app predicts absence risk before booking. |
 | `python.py` | Minimal API-only version for checking available slots and booking manually. |
 | `simulacion.py` | Single historical backtest using `dataset_limpio.csv` and `modelo_campeon.json`. |
 | `mc.py` | Monte Carlo simulation over 1000 historical scenarios using the raw XGBoost model. |
@@ -79,7 +80,7 @@ source .venv/bin/activate
 Install the required packages:
 
 ```bash
-pip install fastapi uvicorn pandas numpy xgboost scikit-learn joblib
+pip install -r requirements.txt
 ```
 
 ## Running the Web Demo
@@ -118,6 +119,40 @@ curl -X POST http://localhost:8000/api/evaluar-y-reservar \
     "weekend": 0
   }'
 ```
+
+## Running the Chatbot App
+
+Run the conversational version:
+
+```bash
+python3 api_chatbot.py
+```
+
+Then open:
+
+```text
+http://localhost:8100
+```
+
+The chatbot keeps the conversation in memory and sends the latest conversation context to Gemini on every turn. Gemini returns both the assistant response and extracted patient data. The app shows the collected admission data, the consultation reason, the payload that would be sent to the XGBoost model, and the estimated no-show risk when enough model fields are available. This chatbot does not reserve appointments.
+
+To enable the Gemini-powered conversation and extraction, set these environment variables before starting the app:
+
+```bash
+export GEMINI_API_KEY="your_api_key"
+export LLM_API_BASE_URL="https://generativelanguage.googleapis.com/v1beta"
+export LLM_MODEL="gemini-3.6-flash"
+python3 api_chatbot.py
+```
+
+For local development, you can also place the Gemini API key in `api_key.txt`. That file is ignored by Git so it is not uploaded by accident. If both are present, `GEMINI_API_KEY` takes priority over `api_key.txt`. The older `LLM_API_KEY` name is also supported.
+
+If no API key is set, the app still runs with fixed follow-up questions and a small local fallback extractor for demo phrases such as name, age, consultation reason, wait days, SMS, weekend, ratio, and preferred time.
+
+Chatbot routes:
+
+- `POST /api/chat` stores a message, sends the conversation to Gemini, returns the assistant reply, and updates extracted patient data.
+- `GET /api/session/{session_id}` returns the current chat session state.
 
 ## Running the Simulations
 

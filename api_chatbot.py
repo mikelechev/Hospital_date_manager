@@ -2,18 +2,18 @@
 """
 Chatbot for patient intake.
 
-The patient talks naturally. A local LLM (Ollama, Gemini, etc.) keeps the conversation
-going and extracts the structured fields needed by the no-show model, plus
-the consultation reason. This app does not book appointments.
+The patient talks naturally. Gemini keeps the conversation going and extracts
+the structured fields needed by the no-show model, plus the consultation reason.
+This app does not book appointments.
 """
 
-import abc
 import json
 import os
 import random
 import re
 import urllib.error
 import urllib.request
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -25,6 +25,11 @@ import xgboost as xgb
 
 
 MODEL_PATH = "modelo_campeon.json"
+API_KEY_PATH = Path("api_key.txt")
+LLM_API_BASE_URL = os.getenv(
+    "LLM_API_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"
+)
+LLM_MODEL = os.getenv("LLM_MODEL", "gemini-3.6-flash")
 
 FEATURES = [
     "Age",
@@ -68,211 +73,19 @@ INTAKE_REQUIRED_FIELDS = [
 ]
 
 
-# ==============================================================================
-# CONFIGURATION & SETTINGS
-# ==============================================================================
+def load_llm_api_key():
+    env_key = os.getenv("GEMINI_API_KEY") or os.getenv("LLM_API_KEY")
+    if env_key:
+        return env_key.strip()
 
-class AppSettings(BaseModel):
-    provider: str = "ollama"
-    model: str = ""
-    api_key: str = ""
-    base_url: str = os.getenv("LLM_API_BASE_URL", "http://localhost:11434")
+    if API_KEY_PATH.exists():
+        return API_KEY_PATH.read_text(encoding="utf-8").strip()
 
-current_settings = AppSettings()
+    return None
 
 
-# ==============================================================================
-# LLM PROVIDERS ARCHITECTURE
-# ==============================================================================
+LLM_API_KEY = load_llm_api_key()
 
-class LLMProvider(abc.ABC):
-    @abc.abstractmethod
-    def chat_json(self, prompt: str, settings: AppSettings) -> dict | None:
-        pass
-
-    @abc.abstractmethod
-    def list_models(self, settings: AppSettings) -> list[str]:
-        pass
-
-    @abc.abstractmethod
-    def available(self, settings: AppSettings) -> bool:
-        pass
-
-
-class OllamaProvider(LLMProvider):
-    def available(self, settings: AppSettings) -> bool:
-        url = f"{settings.base_url.rstrip('/')}/api/tags"
-        try:
-            req = urllib.request.Request(url, method="GET")
-            with urllib.request.urlopen(req, timeout=3):
-                return True
-        except (urllib.error.URLError, TimeoutError):
-            return False
-
-    def list_models(self, settings: AppSettings) -> list[str]:
-        url = f"{settings.base_url.rstrip('/')}/api/tags"
-        try:
-            req = urllib.request.Request(url, method="GET")
-            with urllib.request.urlopen(req, timeout=5) as res:
-                data = json.loads(res.read().decode("utf-8"))
-                return [m["name"] for m in data.get("models", [])]
-        except Exception as e:
-            print(f"Ollama list_models error: {e}")
-            return []
-
-    def chat_json(self, prompt: str, settings: AppSettings) -> dict | None:
-        if not settings.model:
-            return None
-            
-        payload = {
-            "model": settings.model,
-            "messages": [{"role": "user", "content": prompt}],
-            "stream": False,
-            "format": "json",
-            "options": {
-                "temperature": 0.85,
-                "top_p": 0.95,
-            },
-        }
-        url = f"{settings.base_url.rstrip('/')}/api/chat"
-
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-
-        with urllib.request.urlopen(req, timeout=60) as response:
-            raw = json.loads(response.read().decode("utf-8"))
-        content = raw["message"]["content"]
-        
-        return json.loads(content)
-
-
-class GeminiProvider(LLMProvider):
-    def available(self, settings: AppSettings) -> bool:
-        return bool(settings.api_key)
-
-    def list_models(self, settings: AppSettings) -> list[str]:
-        if not settings.api_key:
-            return []
-        url = f"https://generativelanguage.googleapis.com/v1beta/models?key={settings.api_key}"
-        try:
-            req = urllib.request.Request(url, method="GET")
-            with urllib.request.urlopen(req, timeout=10) as res:
-                data = json.loads(res.read().decode("utf-8"))
-                models = []
-                for m in data.get("models", []):
-                    methods = m.get("supportedGenerationMethods", [])
-                    if "generateContent" in methods:
-                        name = m.get("name", "").replace("models/", "")
-                        models.append(name)
-                return models
-        except Exception as e:
-            print(f"Gemini list_models error: {e}")
-            return []
-
-    def chat_json(self, prompt: str, settings: AppSettings) -> dict | None:
-        if not settings.api_key or not settings.model:
-            return None
-
-        model = settings.model
-        if not model.startswith("models/"):
-            model = f"models/{model}"
-
-        url = f"https://generativelanguage.googleapis.com/v1beta/{model}:generateContent?key={settings.api_key}"
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "responseMimeType": "application/json",
-                "temperature": 0.85,
-                "topP": 0.95
-            }
-        }
-        
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-
-        with urllib.request.urlopen(req, timeout=60) as response:
-            raw = json.loads(response.read().decode("utf-8"))
-            
-        content = raw["candidates"][0]["content"]["parts"][0]["text"].strip()
-        
-        if content.startswith("```json"):
-            content = content[7:]
-        elif content.startswith("```"):
-            content = content[3:]
-        if content.endswith("```"):
-            content = content[:-3]
-            
-        return json.loads(content)
-
-
-class OpenAIProvider(LLMProvider):
-    def available(self, settings: AppSettings) -> bool:
-        return False
-
-    def list_models(self, settings: AppSettings) -> list[str]:
-        return []
-
-    def chat_json(self, prompt: str, settings: AppSettings) -> dict | None:
-        raise NotImplementedError("OpenAI provider not yet implemented.")
-
-
-class OpenRouterProvider(LLMProvider):
-    def available(self, settings: AppSettings) -> bool:
-        return False
-
-    def list_models(self, settings: AppSettings) -> list[str]:
-        return []
-
-    def chat_json(self, prompt: str, settings: AppSettings) -> dict | None:
-        raise NotImplementedError("OpenRouter provider not yet implemented.")
-
-
-PROVIDERS: dict[str, LLMProvider] = {
-    "ollama": OllamaProvider(),
-    "gemini": GeminiProvider(),
-    "openai": OpenAIProvider(),
-    "openrouter": OpenRouterProvider(),
-}
-
-
-def call_llm(prompt: str) -> dict | None:
-    provider_name = current_settings.provider
-    provider = PROVIDERS.get(provider_name)
-    
-    if not provider:
-        print(f"Provider {provider_name} not found.")
-        return None
-
-    try:
-        if not provider.available(current_settings):
-            print(f"Provider {provider_name} is not available (check API key or service).")
-            return None
-        return provider.chat_json(prompt, current_settings)
-    except (
-        KeyError,
-        IndexError,
-        json.JSONDecodeError,
-        urllib.error.URLError,
-        TimeoutError,
-    ) as exc:
-        print(f"{provider_name} chat failed, using local fallback only: {exc}")
-        return None
-    except Exception as exc:
-        print(f"Unexpected error with {provider_name}: {exc}")
-        return None
-
-
-# ==============================================================================
-# PREDICTION MODEL
-# ==============================================================================
 
 def load_model():
     if not os.path.exists(MODEL_PATH):
@@ -291,13 +104,6 @@ modelo_ia = load_model()
 class ChatRequest(BaseModel):
     session_id: str
     message: str
-
-
-class SettingsRequest(BaseModel):
-    provider: str | None = None
-    model: str | None = None
-    api_key: str | None = None
-    base_url: str | None = None
 
 
 app = FastAPI(title="Hospital Patient Intake Chatbot")
@@ -443,6 +249,51 @@ def fallback_extract(text):
     return extracted
 
 
+def call_gemini_json(prompt):
+    if not LLM_API_KEY:
+        return None
+
+    payload = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": prompt}],
+            }
+        ],
+        "generationConfig": {
+            "responseMimeType": "application/json",
+            "temperature": 0.85,
+            "topP": 0.95,
+        },
+    }
+    url = f"{LLM_API_BASE_URL}/models/{LLM_MODEL}:generateContent"
+
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "x-goog-api-key": LLM_API_KEY,
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            raw = json.loads(response.read().decode("utf-8"))
+        content = raw["candidates"][0]["content"]["parts"][0]["text"]
+        return json.loads(content)
+    except (
+        KeyError,
+        IndexError,
+        json.JSONDecodeError,
+        urllib.error.URLError,
+        TimeoutError,
+    ) as exc:
+        print(f"Gemini chat failed, using local fallback only: {exc}")
+        return None
+
+
 def missing_model_fields(patient_data):
     return [field for field in MODEL_REQUIRED_FIELDS if field not in patient_data]
 
@@ -578,19 +429,18 @@ def fallback_chat_turn(messages, current_data):
 
 
 def llm_chat_turn(messages, current_data):
-    llm_response = call_llm(build_chat_prompt(messages, current_data))
-    
-    if not llm_response:
+    gemini_response = call_gemini_json(build_chat_prompt(messages, current_data))
+    if not gemini_response:
         return fallback_chat_turn(messages, current_data)
 
     merged = dict(current_data)
-    merged.update(clean_extracted_data(llm_response.get("extracted_data", {})))
+    merged.update(clean_extracted_data(gemini_response.get("extracted_data", {})))
     fallback_data = fallback_extract(messages[-1]["content"])
     for key, value in clean_extracted_data(fallback_data).items():
         if key not in merged:
             merged[key] = value
 
-    assistant_message = str(llm_response.get("assistant_message") or "").strip()
+    assistant_message = str(gemini_response.get("assistant_message") or "").strip()
     if not assistant_message:
         assistant_message = next_question(merged)
 
@@ -676,67 +526,6 @@ def session_payload(session):
     }
 
 
-# ==============================================================================
-# API ENDPOINTS
-# ==============================================================================
-
-@app.get("/api/providers")
-def get_providers():
-    return ["ollama", "gemini"]
-
-
-@app.get("/api/models")
-def get_models(provider: str | None = None):
-    prov_name = provider or current_settings.provider
-    prov_impl = PROVIDERS.get(prov_name)
-    if not prov_impl:
-        return []
-        
-    temp_settings = AppSettings(
-        provider=prov_name,
-        api_key=current_settings.api_key,
-        base_url=current_settings.base_url,
-        model=current_settings.model
-    )
-    return prov_impl.list_models(temp_settings)
-
-
-@app.get("/api/settings")
-def get_settings():
-    return current_settings.dict()
-
-
-@app.post("/api/settings")
-def update_settings(req: SettingsRequest):
-    if req.provider is not None:
-        current_settings.provider = req.provider
-    if req.model is not None:
-        current_settings.model = req.model
-    if req.api_key is not None:
-        current_settings.api_key = req.api_key
-    if req.base_url is not None:
-        current_settings.base_url = req.base_url
-    return current_settings.dict()
-
-
-@app.post("/api/chat")
-def chat(request: ChatRequest):
-    session = get_session(request.session_id)
-    if request.message.strip():
-        session["messages"].append({"role": "user", "content": request.message.strip()})
-        answer, session["patient_data"] = llm_chat_turn(
-            session["messages"], session["patient_data"]
-        )
-        session["messages"].append({"role": "assistant", "content": answer})
-
-    return session_payload(session)
-
-
-@app.get("/api/session/{session_id}")
-def session_state(session_id: str):
-    return session_payload(get_session(session_id))
-
-
 @app.get("/", response_class=HTMLResponse)
 def chatbot_ui():
     return HTMLResponse(
@@ -747,9 +536,9 @@ def chatbot_ui():
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admision · Chat</title>
-  <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
-  <link rel="preconnect" href="[https://fonts.googleapis.com](https://fonts.googleapis.com)">
-  <link href="[https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap](https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap)" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
       --bg-app: #eef3ef;
@@ -801,43 +590,26 @@ def chatbot_ui():
       stroke-linecap: round;
     }
 
-    /* AI Settings Modal Specific Styles (Dark Theme Glassmorphism) */
-    .glass-panel { 
-        background: rgba(15, 23, 42, 0.95); 
-        backdrop-filter: blur(16px); 
-        -webkit-backdrop-filter: blur(16px); 
-    }
-    @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-    .animate-fade-in { animation: fade-in 0.25s ease-out; }
-
     @media (prefers-reduced-motion: reduce) {
-      .msg-row, .dot, .animate-fade-in { animation: none !important; }
+      .msg-row, .dot { animation: none !important; }
       #pulse-path, #risk-ring-fg, .field-card { transition: none !important; }
     }
   </style>
 </head>
-<body class="min-h-screen relative">
+<body class="min-h-screen">
   <main class="mx-auto grid min-h-screen max-w-7xl grid-cols-1 gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-6 lg:p-6">
 
     <section class="flex min-h-[80vh] flex-col overflow-hidden rounded-3xl border shadow-sm lg:min-h-0" style="background: var(--bg-panel); border-color: var(--border);">
-      <header class="flex items-center justify-between gap-3 border-b px-6 py-5" style="border-color: var(--border);">
-        <div class="flex items-center gap-3">
-            <div class="flex h-10 w-10 items-center justify-center rounded-full" style="background: var(--accent-soft);">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent-strong)" stroke-width="2" stroke-linecap="round"><path d="M12 3v18M3 12h18"/></svg>
-            </div>
-            <div>
-                <h1 class="font-display text-xl" style="color: var(--accent-strong);">Admisión, antes de tu consulta</h1>
-                <p class="mt-0.5 text-sm" style="color: var(--ink-muted);">Una charla breve para preparar tus datos. No reservamos citas aquí.</p>
-            </div>
+      <header class="flex items-center gap-3 border-b px-6 py-5" style="border-color: var(--border);">
+        <div class="flex h-10 w-10 items-center justify-center rounded-full" style="background: var(--accent-soft);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent-strong)" stroke-width="2" stroke-linecap="round"><path d="M12 3v18M3 12h18"/></svg>
         </div>
-        <button id="btn-open-settings" class="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-500" title="Configuración de IA">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="3"></circle>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-            </svg>
-        </button>
+        <div>
+          <h1 class="font-display text-xl" style="color: var(--accent-strong);">Admisión, antes de tu consulta</h1>
+          <p class="mt-0.5 text-sm" style="color: var(--ink-muted);">Una charla breve para preparar tus datos. No reservamos citas aquí.</p>
+        </div>
       </header>
-      
+
       <div id="messages" class="flex-1 space-y-4 overflow-y-auto px-6 py-6"></div>
 
       <div id="typing" class="hidden items-center gap-2 px-6 pb-2">
@@ -895,85 +667,6 @@ def chatbot_ui():
 
     </aside>
   </main>
-  
-  <!-- AI Settings Modal -->
-  <div id="settings-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div class="glass-panel p-6 rounded-2xl max-w-[550px] w-full border border-slate-700 shadow-2xl flex flex-col font-sans">
-          <h2 class="text-lg font-bold text-white mb-4">Configuración de Inteligencia Artificial</h2>
-          
-          <div class="flex space-x-2 mb-4 border-b border-slate-800">
-              <button id="tab-ollama" class="px-4 py-2 text-sm font-semibold border-b-2 transition-colors border-emerald-500 text-emerald-400">Local (Ollama)</button>
-              <button id="tab-gemini" class="px-4 py-2 text-sm font-semibold border-b-2 transition-colors border-transparent text-slate-500 hover:text-slate-300">Cloud (Gemini)</button>
-          </div>
-
-          <div class="space-y-4 mb-6 flex-1">
-              <!-- Ollama Panel -->
-              <div id="content-ollama" class="animate-fade-in block">
-                  <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-800 mb-4">
-                      <h3 class="text-sm font-bold text-emerald-400 mb-2 flex items-center gap-2">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-                          Guía Rápida: Ollama
-                      </h3>
-                      <ol class="text-xs text-slate-300 space-y-2 list-decimal list-inside ml-1">
-                          <li>Instala Ollama en tu equipo y asegúrate de que el servicio está activo.</li>
-                          <li>Descarga un modelo compatible, por ejemplo: <code class="bg-slate-800 px-1.5 py-0.5 rounded text-emerald-300 font-mono">ollama pull llama3.2</code></li>
-                          <li>Configura CORS si es necesario (OLLAMA_ORIGINS="*").</li>
-                      </ol>
-                  </div>
-                  <div>
-                      <div class="flex justify-between items-center mb-1">
-                          <label class="text-xs font-semibold text-slate-300">Seleccionar Modelo Local</label>
-                          <button id="btn-refresh-ollama" class="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-                              Actualizar lista
-                          </button>
-                      </div>
-                      <select id="select-ollama" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-300 focus:outline-none focus:border-emerald-500 font-mono">
-                          <option>Cargando...</option>
-                      </select>
-                  </div>
-              </div>
-
-              <!-- Gemini Panel -->
-              <div id="content-gemini" class="animate-fade-in hidden">
-                  <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-800 mb-4">
-                      <h3 class="text-sm font-bold text-blue-400 mb-2 flex items-center gap-2">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-                          Guía Rápida: Gemini API
-                      </h3>
-                      <ol class="text-xs text-slate-300 space-y-2 list-decimal list-inside ml-2">
-                          <li>Consigue tu API Key gratuita en Google AI Studio.</li>
-                          <li>Pega tu clave en el campo de abajo.</li>
-                          <li>Selecciona un modelo. Se recomienda usar Flash.</li>
-                      </ol>
-                  </div>
-                  <div class="space-y-3">
-                      <div>
-                          <label class="text-xs font-semibold text-slate-300 block mb-1">Clave de API Gemini</label>
-                          <input type="password" id="input-apikey" placeholder="AIzaSy..." class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-300 focus:outline-none focus:border-blue-500" />
-                      </div>
-                      <div>
-                          <div class="flex justify-between items-center mb-1">
-                              <label class="text-xs font-semibold text-slate-300 block">Motor de Análisis</label>
-                              <button id="btn-refresh-gemini" class="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-                                  Actualizar lista
-                              </button>
-                          </div>
-                          <select id="select-gemini" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-300 focus:outline-none focus:border-blue-500">
-                              <option>Cargando modelos...</option>
-                          </select>
-                      </div>
-                  </div>
-              </div>
-          </div>
-
-          <div class="flex justify-end space-x-3 pt-4 border-t border-slate-800">
-              <button id="btn-close-settings" class="px-4 py-2 rounded-lg text-sm text-slate-400 hover:bg-slate-800 transition-colors">Cancelar</button>
-              <button id="btn-save-settings" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm text-white shadow-lg transition-colors">Guardar Ajustes</button>
-          </div>
-      </div>
-  </div>
 
   <script>
     const sessionId = crypto.randomUUID();
@@ -990,27 +683,7 @@ def chatbot_ui():
     const missingList = document.getElementById("missing-list");
     const pulsePath = document.getElementById("pulse-path");
     const progressLabel = document.getElementById("progress-label");
-    
-    // Config UI Elements
-    const modalSettings = document.getElementById('settings-modal');
-    const btnOpenSettings = document.getElementById('btn-open-settings');
-    const btnCloseSettings = document.getElementById('btn-close-settings');
-    const btnSaveSettings = document.getElementById('btn-save-settings');
-    
-    const tabOllama = document.getElementById('tab-ollama');
-    const tabGemini = document.getElementById('tab-gemini');
-    const contentOllama = document.getElementById('content-ollama');
-    const contentGemini = document.getElementById('content-gemini');
-    
-    const selectOllama = document.getElementById('select-ollama');
-    const selectGemini = document.getElementById('select-gemini');
-    const inputApiKey = document.getElementById('input-apikey');
-    
-    const btnRefreshOllama = document.getElementById('btn-refresh-ollama');
-    const btnRefreshGemini = document.getElementById('btn-refresh-gemini');
-    
     let currentMessages = [];
-    let activeTab = 'ollama';
 
     const FIELD_LABELS = {
       nombre: "Nombre",
@@ -1029,136 +702,6 @@ def chatbot_ui():
     pulsePath.style.strokeDashoffset = String(pulseLength);
 
     const riskCircumference = 2 * Math.PI * 30;
-    
-    // --- SETTINGS MODAL LOGIC ---
-    
-    function switchTab(tab) {
-        activeTab = tab;
-        if (tab === 'ollama') {
-            tabOllama.classList.add('border-emerald-500', 'text-emerald-400');
-            tabOllama.classList.remove('border-transparent', 'text-slate-500', 'hover:text-slate-300');
-            tabGemini.classList.remove('border-blue-500', 'text-blue-400');
-            tabGemini.classList.add('border-transparent', 'text-slate-500', 'hover:text-slate-300');
-            contentOllama.classList.remove('hidden');
-            contentOllama.classList.add('block');
-            contentGemini.classList.add('hidden');
-            contentGemini.classList.remove('block');
-        } else {
-            tabGemini.classList.add('border-blue-500', 'text-blue-400');
-            tabGemini.classList.remove('border-transparent', 'text-slate-500', 'hover:text-slate-300');
-            tabOllama.classList.remove('border-emerald-500', 'text-emerald-400');
-            tabOllama.classList.add('border-transparent', 'text-slate-500', 'hover:text-slate-300');
-            contentGemini.classList.remove('hidden');
-            contentGemini.classList.add('block');
-            contentOllama.classList.add('hidden');
-            contentOllama.classList.remove('block');
-        }
-    }
-
-    async function fetchModels(provider, preselectModel = null) {
-        const select = provider === 'ollama' ? selectOllama : selectGemini;
-        select.innerHTML = '<option>Cargando...</option>';
-        select.disabled = true;
-
-        if (provider === 'gemini') {
-            await fetch('/api/settings', {
-                method: 'POST',
-                headers: {'Content-Type':'application/json'},
-                body: JSON.stringify({ api_key: inputApiKey.value })
-            });
-        }
-
-        try {
-            const res = await fetch(`/api/models?provider=${provider}`);
-            if (res.ok) {
-                const models = await res.json();
-                select.innerHTML = '';
-                if(models.length === 0) {
-                    select.innerHTML = '<option value="">Sin modelos / API Key requerida</option>';
-                } else {
-                    for(const m of models) {
-                        const opt = document.createElement('option');
-                        opt.value = m;
-                        opt.textContent = m;
-                        select.appendChild(opt);
-                    }
-                    if(preselectModel && models.includes(preselectModel)) {
-                        select.value = preselectModel;
-                    }
-                }
-            } else {
-                select.innerHTML = '<option value="">Error del servidor</option>';
-            }
-        } catch(e) {
-            select.innerHTML = '<option value="">Error de red</option>';
-        } finally {
-            select.disabled = false;
-        }
-    }
-
-    btnOpenSettings.addEventListener('click', async () => {
-        modalSettings.classList.remove('hidden');
-        
-        try {
-            const res = await fetch('/api/settings');
-            const settings = await res.json();
-            
-            if(settings.api_key) {
-                inputApiKey.value = settings.api_key;
-            }
-            
-            if(settings.provider === 'gemini') {
-                switchTab('gemini');
-                await fetchModels('gemini', settings.model);
-                await fetchModels('ollama'); 
-            } else {
-                switchTab('ollama');
-                await fetchModels('ollama', settings.model);
-                await fetchModels('gemini'); 
-            }
-        } catch(err) {
-            console.error("Error loading initial settings", err);
-        }
-    });
-
-    btnCloseSettings.addEventListener('click', () => {
-        modalSettings.classList.add('hidden');
-    });
-
-    tabOllama.addEventListener('click', () => switchTab('ollama'));
-    tabGemini.addEventListener('click', () => switchTab('gemini'));
-    
-    btnRefreshOllama.addEventListener('click', () => fetchModels('ollama'));
-    btnRefreshGemini.addEventListener('click', () => fetchModels('gemini'));
-
-    btnSaveSettings.addEventListener('click', async () => {
-        const payload = {
-            provider: activeTab,
-            api_key: inputApiKey.value,
-            model: activeTab === 'ollama' ? selectOllama.value : selectGemini.value
-        };
-        
-        try {
-            btnSaveSettings.textContent = 'Guardando...';
-            btnSaveSettings.disabled = true;
-            
-            await fetch('/api/settings', {
-                method: 'POST',
-                headers: {'Content-Type':'application/json'},
-                body: JSON.stringify(payload)
-            });
-            
-            modalSettings.classList.add('hidden');
-        } catch (error) {
-            console.error("Error saving settings", error);
-        } finally {
-            btnSaveSettings.textContent = 'Guardar Ajustes';
-            btnSaveSettings.disabled = false;
-        }
-    });
-
-
-    // --- CHAT LOGIC ---
 
     function renderMessages(messages) {
       messagesEl.innerHTML = "";
@@ -1290,7 +833,7 @@ def chatbot_ui():
       } catch (error) {
         currentMessages = [
           ...optimisticMessages,
-          {role: "assistant", content: "No he podido procesar el mensaje. Revisa la conexión o la configuración del proveedor (ícono de engranaje) e inténtalo de nuevo."}
+          {role: "assistant", content: "No he podido procesar el mensaje. Revisa la conexión o la API key e inténtalo de nuevo."}
         ];
         renderMessages(currentMessages);
       } finally {
@@ -1317,6 +860,25 @@ def chatbot_ui():
 </html>
         """
     )
+
+
+@app.post("/api/chat")
+def chat(request: ChatRequest):
+    session = get_session(request.session_id)
+    if request.message.strip():
+        session["messages"].append({"role": "user", "content": request.message.strip()})
+        answer, session["patient_data"] = llm_chat_turn(
+            session["messages"], session["patient_data"]
+        )
+        session["messages"].append({"role": "assistant", "content": answer})
+
+    return session_payload(session)
+
+
+@app.get("/api/session/{session_id}")
+def session_state(session_id: str):
+    return session_payload(get_session(session_id))
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8100)

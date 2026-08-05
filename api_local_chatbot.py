@@ -203,6 +203,7 @@ class GeminiProvider(LLMProvider):
             
         content = raw["candidates"][0]["content"]["parts"][0]["text"].strip()
         
+        # Clean markdown wrappers if Gemini returned them despite responseMimeType
         if content.startswith("```json"):
             content = content[7:]
         elif content.startswith("```"):
@@ -801,43 +802,40 @@ def chatbot_ui():
       stroke-linecap: round;
     }
 
-    /* AI Settings Modal Specific Styles (Dark Theme Glassmorphism) */
-    .glass-panel { 
-        background: rgba(15, 23, 42, 0.95); 
-        backdrop-filter: blur(16px); 
-        -webkit-backdrop-filter: blur(16px); 
-    }
-    @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-    .animate-fade-in { animation: fade-in 0.25s ease-out; }
-
     @media (prefers-reduced-motion: reduce) {
-      .msg-row, .dot, .animate-fade-in { animation: none !important; }
+      .msg-row, .dot { animation: none !important; }
       #pulse-path, #risk-ring-fg, .field-card { transition: none !important; }
     }
   </style>
 </head>
-<body class="min-h-screen relative">
+<body class="min-h-screen">
   <main class="mx-auto grid min-h-screen max-w-7xl grid-cols-1 gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-6 lg:p-6">
 
     <section class="flex min-h-[80vh] flex-col overflow-hidden rounded-3xl border shadow-sm lg:min-h-0" style="background: var(--bg-panel); border-color: var(--border);">
-      <header class="flex items-center justify-between gap-3 border-b px-6 py-5" style="border-color: var(--border);">
-        <div class="flex items-center gap-3">
-            <div class="flex h-10 w-10 items-center justify-center rounded-full" style="background: var(--accent-soft);">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent-strong)" stroke-width="2" stroke-linecap="round"><path d="M12 3v18M3 12h18"/></svg>
-            </div>
-            <div>
-                <h1 class="font-display text-xl" style="color: var(--accent-strong);">Admisión, antes de tu consulta</h1>
-                <p class="mt-0.5 text-sm" style="color: var(--ink-muted);">Una charla breve para preparar tus datos. No reservamos citas aquí.</p>
-            </div>
+      <header class="flex items-center gap-3 border-b px-6 py-5" style="border-color: var(--border);">
+        <div class="flex h-10 w-10 items-center justify-center rounded-full" style="background: var(--accent-soft);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent-strong)" stroke-width="2" stroke-linecap="round"><path d="M12 3v18M3 12h18"/></svg>
         </div>
-        <button id="btn-open-settings" class="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-500" title="Configuración de IA">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="3"></circle>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-            </svg>
-        </button>
+        <div>
+          <h1 class="font-display text-xl" style="color: var(--accent-strong);">Admisión, antes de tu consulta</h1>
+          <p class="mt-0.5 text-sm" style="color: var(--ink-muted);">Una charla breve para preparar tus datos. No reservamos citas aquí.</p>
+        </div>
       </header>
       
+      <!-- Panel de Configuración LLM -->
+      <div class="flex flex-wrap items-center gap-3 border-b px-6 py-3 text-sm bg-gray-50" style="border-color: var(--border);">
+        <label class="flex items-center gap-2">Proveedor
+            <select id="ui-provider" class="rounded border px-2 py-1 outline-none disabled:opacity-50"></select>
+        </label>
+        <label class="flex items-center gap-2">Modelo
+            <select id="ui-model" class="rounded border px-2 py-1 outline-none min-w-[120px] disabled:opacity-50"></select>
+        </label>
+        <label class="flex items-center gap-2">API Key
+            <input type="password" id="ui-apikey" class="rounded border px-2 py-1 outline-none w-32 disabled:opacity-50" placeholder="Opcional" autocomplete="off" />
+        </label>
+        <button id="ui-update-models" class="rounded px-3 py-1 text-white shadow-sm transition hover:opacity-90 disabled:opacity-50" style="background: var(--accent);">Actualizar modelos</button>
+      </div>
+
       <div id="messages" class="flex-1 space-y-4 overflow-y-auto px-6 py-6"></div>
 
       <div id="typing" class="hidden items-center gap-2 px-6 pb-2">
@@ -895,85 +893,6 @@ def chatbot_ui():
 
     </aside>
   </main>
-  
-  <!-- AI Settings Modal -->
-  <div id="settings-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div class="glass-panel p-6 rounded-2xl max-w-[550px] w-full border border-slate-700 shadow-2xl flex flex-col font-sans">
-          <h2 class="text-lg font-bold text-white mb-4">Configuración de Inteligencia Artificial</h2>
-          
-          <div class="flex space-x-2 mb-4 border-b border-slate-800">
-              <button id="tab-ollama" class="px-4 py-2 text-sm font-semibold border-b-2 transition-colors border-emerald-500 text-emerald-400">Local (Ollama)</button>
-              <button id="tab-gemini" class="px-4 py-2 text-sm font-semibold border-b-2 transition-colors border-transparent text-slate-500 hover:text-slate-300">Cloud (Gemini)</button>
-          </div>
-
-          <div class="space-y-4 mb-6 flex-1">
-              <!-- Ollama Panel -->
-              <div id="content-ollama" class="animate-fade-in block">
-                  <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-800 mb-4">
-                      <h3 class="text-sm font-bold text-emerald-400 mb-2 flex items-center gap-2">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-                          Guía Rápida: Ollama
-                      </h3>
-                      <ol class="text-xs text-slate-300 space-y-2 list-decimal list-inside ml-1">
-                          <li>Instala Ollama en tu equipo y asegúrate de que el servicio está activo.</li>
-                          <li>Descarga un modelo compatible, por ejemplo: <code class="bg-slate-800 px-1.5 py-0.5 rounded text-emerald-300 font-mono">ollama pull llama3.2</code></li>
-                          <li>Configura CORS si es necesario (OLLAMA_ORIGINS="*").</li>
-                      </ol>
-                  </div>
-                  <div>
-                      <div class="flex justify-between items-center mb-1">
-                          <label class="text-xs font-semibold text-slate-300">Seleccionar Modelo Local</label>
-                          <button id="btn-refresh-ollama" class="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-                              Actualizar lista
-                          </button>
-                      </div>
-                      <select id="select-ollama" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-300 focus:outline-none focus:border-emerald-500 font-mono">
-                          <option>Cargando...</option>
-                      </select>
-                  </div>
-              </div>
-
-              <!-- Gemini Panel -->
-              <div id="content-gemini" class="animate-fade-in hidden">
-                  <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-800 mb-4">
-                      <h3 class="text-sm font-bold text-blue-400 mb-2 flex items-center gap-2">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-                          Guía Rápida: Gemini API
-                      </h3>
-                      <ol class="text-xs text-slate-300 space-y-2 list-decimal list-inside ml-2">
-                          <li>Consigue tu API Key gratuita en Google AI Studio.</li>
-                          <li>Pega tu clave en el campo de abajo.</li>
-                          <li>Selecciona un modelo. Se recomienda usar Flash.</li>
-                      </ol>
-                  </div>
-                  <div class="space-y-3">
-                      <div>
-                          <label class="text-xs font-semibold text-slate-300 block mb-1">Clave de API Gemini</label>
-                          <input type="password" id="input-apikey" placeholder="AIzaSy..." class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-300 focus:outline-none focus:border-blue-500" />
-                      </div>
-                      <div>
-                          <div class="flex justify-between items-center mb-1">
-                              <label class="text-xs font-semibold text-slate-300 block">Motor de Análisis</label>
-                              <button id="btn-refresh-gemini" class="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-                                  Actualizar lista
-                              </button>
-                          </div>
-                          <select id="select-gemini" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-300 focus:outline-none focus:border-blue-500">
-                              <option>Cargando modelos...</option>
-                          </select>
-                      </div>
-                  </div>
-              </div>
-          </div>
-
-          <div class="flex justify-end space-x-3 pt-4 border-t border-slate-800">
-              <button id="btn-close-settings" class="px-4 py-2 rounded-lg text-sm text-slate-400 hover:bg-slate-800 transition-colors">Cancelar</button>
-              <button id="btn-save-settings" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm text-white shadow-lg transition-colors">Guardar Ajustes</button>
-          </div>
-      </div>
-  </div>
 
   <script>
     const sessionId = crypto.randomUUID();
@@ -991,26 +910,12 @@ def chatbot_ui():
     const pulsePath = document.getElementById("pulse-path");
     const progressLabel = document.getElementById("progress-label");
     
-    // Config UI Elements
-    const modalSettings = document.getElementById('settings-modal');
-    const btnOpenSettings = document.getElementById('btn-open-settings');
-    const btnCloseSettings = document.getElementById('btn-close-settings');
-    const btnSaveSettings = document.getElementById('btn-save-settings');
-    
-    const tabOllama = document.getElementById('tab-ollama');
-    const tabGemini = document.getElementById('tab-gemini');
-    const contentOllama = document.getElementById('content-ollama');
-    const contentGemini = document.getElementById('content-gemini');
-    
-    const selectOllama = document.getElementById('select-ollama');
-    const selectGemini = document.getElementById('select-gemini');
-    const inputApiKey = document.getElementById('input-apikey');
-    
-    const btnRefreshOllama = document.getElementById('btn-refresh-ollama');
-    const btnRefreshGemini = document.getElementById('btn-refresh-gemini');
+    const uiProvider = document.getElementById("ui-provider");
+    const uiModel = document.getElementById("ui-model");
+    const uiApiKey = document.getElementById("ui-apikey");
+    const uiUpdateBtn = document.getElementById("ui-update-models");
     
     let currentMessages = [];
-    let activeTab = 'ollama';
 
     const FIELD_LABELS = {
       nombre: "Nombre",
@@ -1030,136 +935,117 @@ def chatbot_ui():
 
     const riskCircumference = 2 * Math.PI * 30;
     
-    // --- SETTINGS MODAL LOGIC ---
-    
-    function switchTab(tab) {
-        activeTab = tab;
-        if (tab === 'ollama') {
-            tabOllama.classList.add('border-emerald-500', 'text-emerald-400');
-            tabOllama.classList.remove('border-transparent', 'text-slate-500', 'hover:text-slate-300');
-            tabGemini.classList.remove('border-blue-500', 'text-blue-400');
-            tabGemini.classList.add('border-transparent', 'text-slate-500', 'hover:text-slate-300');
-            contentOllama.classList.remove('hidden');
-            contentOllama.classList.add('block');
-            contentGemini.classList.add('hidden');
-            contentGemini.classList.remove('block');
-        } else {
-            tabGemini.classList.add('border-blue-500', 'text-blue-400');
-            tabGemini.classList.remove('border-transparent', 'text-slate-500', 'hover:text-slate-300');
-            tabOllama.classList.remove('border-emerald-500', 'text-emerald-400');
-            tabOllama.classList.add('border-transparent', 'text-slate-500', 'hover:text-slate-300');
-            contentGemini.classList.remove('hidden');
-            contentGemini.classList.add('block');
-            contentOllama.classList.add('hidden');
-            contentOllama.classList.remove('block');
-        }
+    // UI Selectors Logic
+    async function saveSettings(updates) {
+        const payload = {};
+        if (updates.provider !== undefined) payload.provider = updates.provider;
+        if (updates.model !== undefined) payload.model = updates.model;
+        if (updates.api_key !== undefined) payload.api_key = updates.api_key;
+        
+        await fetch("/api/settings", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(payload)
+        });
     }
 
-    async function fetchModels(provider, preselectModel = null) {
-        const select = provider === 'ollama' ? selectOllama : selectGemini;
-        select.innerHTML = '<option>Cargando...</option>';
-        select.disabled = true;
+    async function fetchAndPopulateModels() {
+        const provider = uiProvider.value;
+        const apiKey = uiApiKey.value;
+        
+        // Save state before fetching so the backend uses the current API key
+        await saveSettings({ provider: provider, api_key: apiKey });
 
-        if (provider === 'gemini') {
-            await fetch('/api/settings', {
-                method: 'POST',
-                headers: {'Content-Type':'application/json'},
-                body: JSON.stringify({ api_key: inputApiKey.value })
-            });
-        }
-
+        uiModel.disabled = true;
+        uiUpdateBtn.disabled = true;
+        uiModel.innerHTML = '<option>Cargando...</option>';
+        
         try {
             const res = await fetch(`/api/models?provider=${provider}`);
             if (res.ok) {
                 const models = await res.json();
-                select.innerHTML = '';
-                if(models.length === 0) {
-                    select.innerHTML = '<option value="">Sin modelos / API Key requerida</option>';
+                uiModel.innerHTML = "";
+                
+                if (models.length === 0) {
+                    uiModel.innerHTML = '<option value="">Sin modelos / API Key requerida</option>';
+                    await saveSettings({ model: "" });
+                    return;
+                }
+                
+                for (const m of models) {
+                    const opt = document.createElement("option");
+                    opt.value = m;
+                    opt.textContent = m;
+                    uiModel.appendChild(opt);
+                }
+                
+                // Retrieve backend state to see if there's a valid saved model to select
+                const setRes = await fetch("/api/settings");
+                const settings = await setRes.json();
+                
+                if (settings.model && models.includes(settings.model)) {
+                    uiModel.value = settings.model;
                 } else {
-                    for(const m of models) {
-                        const opt = document.createElement('option');
-                        opt.value = m;
-                        opt.textContent = m;
-                        select.appendChild(opt);
-                    }
-                    if(preselectModel && models.includes(preselectModel)) {
-                        select.value = preselectModel;
-                    }
+                    uiModel.value = models[0];
+                    await saveSettings({ model: models[0] });
                 }
             } else {
-                select.innerHTML = '<option value="">Error del servidor</option>';
+                uiModel.innerHTML = '<option value="">Error al cargar</option>';
             }
-        } catch(e) {
-            select.innerHTML = '<option value="">Error de red</option>';
+        } catch (err) {
+            uiModel.innerHTML = '<option value="">Error de red</option>';
         } finally {
-            select.disabled = false;
+            uiModel.disabled = false;
+            uiUpdateBtn.disabled = false;
         }
     }
 
-    btnOpenSettings.addEventListener('click', async () => {
-        modalSettings.classList.remove('hidden');
-        
+    uiProvider.addEventListener("change", () => {
+        fetchAndPopulateModels();
+    });
+
+    uiModel.addEventListener("change", () => {
+        saveSettings({ model: uiModel.value });
+    });
+
+    uiApiKey.addEventListener("change", async () => {
+        await saveSettings({ api_key: uiApiKey.value });
+    });
+
+    uiUpdateBtn.addEventListener("click", () => {
+        fetchAndPopulateModels();
+    });
+
+    async function initSettings() {
         try {
-            const res = await fetch('/api/settings');
-            const settings = await res.json();
+            const provRes = await fetch("/api/providers");
+            const providers = await provRes.json();
             
-            if(settings.api_key) {
-                inputApiKey.value = settings.api_key;
+            uiProvider.innerHTML = "";
+            for (const p of providers) {
+                const opt = document.createElement("option");
+                opt.value = p;
+                opt.textContent = p.charAt(0).toUpperCase() + p.slice(1);
+                uiProvider.appendChild(opt);
+            }
+
+            const setRes = await fetch("/api/settings");
+            const settings = await setRes.json();
+            
+            if (settings.provider) {
+                uiProvider.value = settings.provider;
+            }
+            if (settings.api_key !== undefined && settings.api_key !== null) {
+                uiApiKey.value = settings.api_key;
             }
             
-            if(settings.provider === 'gemini') {
-                switchTab('gemini');
-                await fetchModels('gemini', settings.model);
-                await fetchModels('ollama'); 
-            } else {
-                switchTab('ollama');
-                await fetchModels('ollama', settings.model);
-                await fetchModels('gemini'); 
-            }
-        } catch(err) {
-            console.error("Error loading initial settings", err);
+            await fetchAndPopulateModels();
+        } catch (err) {
+            console.error("Error inicializando configuracion:", err);
         }
-    });
+    }
 
-    btnCloseSettings.addEventListener('click', () => {
-        modalSettings.classList.add('hidden');
-    });
-
-    tabOllama.addEventListener('click', () => switchTab('ollama'));
-    tabGemini.addEventListener('click', () => switchTab('gemini'));
-    
-    btnRefreshOllama.addEventListener('click', () => fetchModels('ollama'));
-    btnRefreshGemini.addEventListener('click', () => fetchModels('gemini'));
-
-    btnSaveSettings.addEventListener('click', async () => {
-        const payload = {
-            provider: activeTab,
-            api_key: inputApiKey.value,
-            model: activeTab === 'ollama' ? selectOllama.value : selectGemini.value
-        };
-        
-        try {
-            btnSaveSettings.textContent = 'Guardando...';
-            btnSaveSettings.disabled = true;
-            
-            await fetch('/api/settings', {
-                method: 'POST',
-                headers: {'Content-Type':'application/json'},
-                body: JSON.stringify(payload)
-            });
-            
-            modalSettings.classList.add('hidden');
-        } catch (error) {
-            console.error("Error saving settings", error);
-        } finally {
-            btnSaveSettings.textContent = 'Guardar Ajustes';
-            btnSaveSettings.disabled = false;
-        }
-    });
-
-
-    // --- CHAT LOGIC ---
-
+    // Chat UI Logic
     function renderMessages(messages) {
       messagesEl.innerHTML = "";
       for (const message of messages) {
@@ -1290,7 +1176,7 @@ def chatbot_ui():
       } catch (error) {
         currentMessages = [
           ...optimisticMessages,
-          {role: "assistant", content: "No he podido procesar el mensaje. Revisa la conexión o la configuración del proveedor (ícono de engranaje) e inténtalo de nuevo."}
+          {role: "assistant", content: "No he podido procesar el mensaje. Revisa la conexión o la configuración del proveedor e inténtalo de nuevo."}
         ];
         renderMessages(currentMessages);
       } finally {
@@ -1311,6 +1197,7 @@ def chatbot_ui():
       await sendMessage(message);
     });
 
+    initSettings();
     loadSession();
   </script>
 </body>
@@ -1319,4 +1206,4 @@ def chatbot_ui():
     )
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8100)
+    uvicorn.run(app, host="0.0.0.0", port=8100) 
