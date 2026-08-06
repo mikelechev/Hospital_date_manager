@@ -1,25 +1,25 @@
 # Hospital Date Manager
 
-Hospital Date Manager is a prototype for hospital appointment optimization. It predicts the probability that a patient will miss an appointment and uses that probability to decide when a controlled overbooking is safe.
+Hospital Date Manager is a prototype for hospital appointment optimization. It combines an AI-assisted conversational intake flow with traditional scheduling and smart overbooking logic.
 
-The project combines:
+The project includes:
 
-- A FastAPI backend for appointment scheduling and risk-based slotting.
-- A conversational Streamlit chatbot UI for collecting patient data and clinical history.
-- An XGBoost model trained to estimate no-show risk.
-- Export tooling for conversation and clinical history data.
-- Backtesting and Monte Carlo scripts that compare traditional scheduling with AI-assisted smart-slotting.
+- A FastAPI smart-slotting demo in `src/api_2.py`.
+- A Streamlit chatbot UI in `chatbot/app.py` for conversational patient intake, clinical history upload, and export.
+- LLM provider adapters for local Ollama and remote Gemini.
+- Export tooling for JSON and CSV conversation exports, plus full data exports with patient state and clinical history.
+- Backtesting and Monte Carlo scripts for comparing scheduling strategies.
 
 ## Project Context
 
-Hospitals often lose capacity because some patients do not attend scheduled appointments. Traditional scheduling leaves those gaps empty. This project explores a smarter scheduling policy:
+Hospitals lose capacity when patients miss appointments. This prototype explores a risk-aware scheduling policy:
 
-1. Estimate each patient's probability of absence.
-2. Allow normal booking when a slot is empty.
-3. Allow overbooking only when the mathematical risk is acceptable.
-4. Block overbooking when two patients are too likely to attend at the same time.
+1. Estimate each patient’s absence probability.
+2. Book regular appointments when the slot is empty.
+3. Approve a second booking only when the combined risk is low.
+4. Block overbooking when two patients are likely to arrive simultaneously.
 
-The overbooking rule used by the API is conservative:
+The current booking rule in `src/api_2.py` uses the following criteria for a second patient in the same slot:
 
 - `prob_ambos_vienen < 0.25`
 - `prob_al_menos_uno_venga > 0.8`
@@ -27,64 +27,49 @@ The overbooking rule used by the API is conservative:
 
 ## Repository Contents
 
-| Path                                      | Purpose                                                                                                                   |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `chatbot/`                                | Streamlit conversational app with LLM patient intake, clinical history interpretation, and export support.                |
-| `chatbot/app.py`                          | Streamlit UI entrypoint for the chatbot and clinical history workflow.                                                    |
-| `chatbot/.env.example`                    | Example environment configuration for Ollama/GPU settings and local app options.                                          |
-| `chatbot/exports/`                        | Generated conversation and clinical history export files.                                                                 |
-| `chatbot/conversation/`                   | Conversation management, prompt building, state, and extraction logic.                                                    |
-| `chatbot/providers/`                      | LLM provider adapters for Ollama and Gemini.                                                                              |
-| `src/api_2.py`                            | Canonical ML-backed FastAPI app. Loads the XGBoost model, predicts absence probability, and applies smart-slotting rules. |
-| `src/chatbot.py`                          | Compatibility wrapper or alternate chatbot entrypoint.                                                                    |
-| `scripts/simulacion.py`                   | Single historical backtest using the dataset and the trained model.                                                       |
-| `scripts/mc.py`                           | Monte Carlo simulation over 1000 historical scenarios using the raw XGBoost model.                                        |
-| `scripts/mc_2.py`                         | Monte Carlo simulation with isotonic probability calibration in memory before evaluation.                                 |
-| `data/dataset_limpio.csv`                 | Clean dataset used by the simulations. Contains 22,106 rows including the target `No-show`.                               |
-| `models/modelo_campeon.json`              | Native XGBoost model used by the API and simulations.                                                                     |
-| `models/mejor_modelo_xgb.joblib`          | Serialized XGBoost model artifact, likely from an earlier training/export workflow.                                       |
-| `models/calibrated_isotonic_model.joblib` | Serialized calibrated model artifact. The current simulation script calibrates in memory instead of loading this file.    |
-
-## Model Inputs
-
-The XGBoost model in `models/modelo_campeon.json` expects these features:
-
-- `Age`
-- `Scholarship`
-- `Hipertension`
-- `Diabetes`
-- `Alcoholism`
-- `Handcap`
-- `SMS_received`
-- `Days_between`
-- `Weekend`
-- `Ratio_Faltas`
-- `Gender_M`
-- `Scheduled_Time_of_Day_Evening`
-- `Scheduled_Time_of_Day_Morning`
-
-The target column in the dataset is:
-
-- `No-show`
+| Path                                      | Purpose                                                                                           |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `README.md`                               | Unified documentation for the repository.                                                         |
+| `chatbot/app.py`                          | Streamlit chatbot UI with conversational intake, clinical history workflows, and export controls. |
+| `chatbot/.env.example`                    | Example environment file with local Ollama and Gemini settings.                                   |
+| `chatbot/requirements.txt`                | Chatbot-specific Python dependencies.                                                             |
+| `chatbot/exports/`                        | Generated conversation exports and saved clinical histories.                                      |
+| `chatbot/conversation/`                   | Conversation state, prompt building, extraction, and LLM coordination.                            |
+| `chatbot/providers/`                      | Provider adapters for Ollama and Gemini.                                                          |
+| `chatbot/config.py`                       | Chatbot runtime configuration and environment loading.                                            |
+| `src/api_2.py`                            | Main FastAPI app for slot booking, agenda status, and XGBoost-based risk prediction.              |
+| `scripts/simulacion.py`                   | Empirical historical backtest.                                                                    |
+| `scripts/mc.py`                           | Monte Carlo simulation using the raw model.                                                       |
+| `scripts/mc_2.py`                         | Monte Carlo simulation with isotonic probability calibration in memory.                           |
+| `data/dataset_limpio.csv`                 | Clean dataset used by the simulation scripts.                                                     |
+| `models/modelo_campeon.json`              | XGBoost model artifact loaded by `src/api_2.py` when available.                                   |
+| `models/mejor_modelo_xgb.joblib`          | Alternative serialized model artifact.                                                            |
+| `models/calibrated_isotonic_model.joblib` | Serialized calibration artifact for model evaluation workflows.                                   |
 
 ## Setup
 
-Create and activate a virtual environment:
+1. Create and activate a virtual environment:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-Install the required packages:
+2. Install the repo dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
+3. Install chatbot dependencies for the Streamlit UI:
+
+```bash
+pip install -r chatbot/requirements.txt
+```
+
 ## Running the Chatbot App
 
-Run the conversational Streamlit app from the `chatbot` folder:
+Start the Streamlit chatbot UI from the `chatbot` folder:
 
 ```bash
 cd chatbot
@@ -97,21 +82,47 @@ Then open:
 http://localhost:8501
 ```
 
-The chatbot interface supports:
+### Chatbot features
 
-- Natural patient conversation and structured patient data extraction.
-- Clinical history upload or text paste.
-- LLM-based interpretation of clinical history using the same provider as the chat flow.
-- Exporting conversation data to JSON or CSV.
-- Optional anonymization of exported personal identifiers.
+- Conversational patient intake with natural language.
+- Clinical history upload or paste.
+- Same-provider LLM interpretation for clinical history and chat extraction.
+- Export conversation to JSON or CSV.
+- Full data export including patient state and clinical history references.
+- Optional anonymization of emails, phone numbers, and long numeric identifiers.
 
-### Local LLM and GPU settings
+### Export behavior
 
-Copy or edit `chatbot/.env.example` to create `chatbot/.env` and configure Ollama GPU acceleration. The app also supports Gemini via environment variables if you prefer remote LLM inference.
+The chatbot export module is implemented in `chatbot/exports/conversation_exporter.py`, with helpers:
+
+- `export_conversation_json(...)`
+- `export_conversation_csv(...)`
+- `export_full_data_csv(...)`
+- `save_clinical_history(...)`
+
+Exports are saved under `chatbot/exports/`, and saved clinical histories are stored in `chatbot/exports/clinical_histories/`.
+
+## Local LLM and GPU Configuration
+
+Create `chatbot/.env` from `chatbot/.env.example` when using Ollama or Gemini.
+
+`chatbot/.env.example` includes:
+
+- `DEFAULT_PROVIDER` (default: `ollama`)
+- `DEFAULT_MODEL` (default: `qwen3:8b`)
+- `GEMINI_API_KEY`
+- `OLLAMA_BASE_URL`
+- `OLLAMA_NO_CLOUD`
+- `OLLAMA_FLASH_ATTENTION`
+- `OLLAMA_IGPU_ENABLE`
+- `OLLAMA_MAX_LOADED_MODELS`
+- `OLLAMA_GPU_OVERHEAD`
+
+Use these settings to enable local GPU inference for an RTX 4060 via Ollama, while keeping the same model.
 
 ## Running the Web API Demo
 
-The main API demo is `src/api_2.py`:
+Run the FastAPI app:
 
 ```bash
 python3 src/api_2.py
@@ -123,12 +134,12 @@ Then open:
 http://localhost:8000
 ```
 
-Useful API routes:
+### API routes
 
-- `GET /api/estado-agenda` returns the current in-memory agenda.
-- `POST /api/evaluar-y-reservar` predicts no-show probability and tries to reserve a slot.
+- `GET /api/estado-agenda` — returns the current appointment agenda.
+- `POST /api/evaluar-y-reservar` — evaluates no-show risk and tries to reserve a slot.
 
-Example request:
+### Example request
 
 ```bash
 curl -X POST http://localhost:8000/api/evaluar-y-reservar \
@@ -144,42 +155,50 @@ curl -X POST http://localhost:8000/api/evaluar-y-reservar \
   }'
 ```
 
+### Model loading behavior
+
+`src/api_2.py` loads `models/modelo_campeon.json` if present. If the file is missing, the API uses a fallback heuristic to compute absence probability.
+
 ## Running the Simulations
 
-Run a single empirical backtest:
+- `python3 scripts/simulacion.py`
+- `python3 scripts/mc.py`
+- `python3 scripts/mc_2.py`
 
-```bash
-python3 scripts/simulacion.py
-```
+These scripts compare traditional scheduling with AI-assisted overbooking and simulated risk-based performance.
 
-Run the raw Monte Carlo simulation:
+## Model Inputs
 
-```bash
-python3 scripts/mc.py
-```
+The XGBoost model expects these features:
 
-Run the calibrated Monte Carlo simulation:
+- `Age`
+- `Scholarship`
+- `Hipertension`
+- `Diabetes`
+- `Alcoholism`
+- `Handcap`
+- `SMS_received`
+- `Days_between`
+- `Weekend`
+- `Ratio_Faltas`
+- `Gender_M`
+- `Scheduled_Time_of_Day_Evening`
+- `Scheduled_Time_of_Day_Morning`
 
-```bash
-python3 scripts/mc_2.py
-```
+Target column:
 
-The simulation scripts compare:
+- `No-show`
 
-- A traditional hospital agenda with fixed capacity.
-- An AI-assisted agenda that overbooks lower-risk no-show patients.
+## Notes
 
-## Implementation Notes
-
-- Appointment and chatbot session state are stored in memory. Restarting an app resets the agenda and conversation state.
-- Conversation exports are saved under `chatbot/exports/`.
-- Uploaded clinical histories are stored under `chatbot/exports/clinical_histories/`.
-- `api_key.txt` and `.env` are ignored by Git and should be used for secrets only.
-- This project is a prototype; it is not production-ready for clinical deployment without persistence, authentication, privacy safeguards, and validation.
+- The chatbot UI is the primary conversational interface. The `src/chatbot.py` file is an empty compatibility placeholder.
+- Session, agenda, and extraction state are stored in memory. Restarting an app resets state.
+- `api_key.txt` and `.env` are ignored by Git and should contain secrets only.
+- This project is a prototype and not production-ready for real clinical deployment without validation, persistence, authentication, and privacy controls.
 
 ## Suggested Next Steps
 
-- Add automated tests for booking rules and export workflows.
-- Persist appointments and session state in a database.
-- Add CI checks for formatting, linting, and runtime validation.
-- Document model training and reproducibility.
+- Add automated tests for booking rules, chat extraction, and exports.
+- Persist appointments, sessions, and clinical history in a database.
+- Add CI workflows for linting, formatting, and runtime validation.
+- Document model training and dataset preparation.
