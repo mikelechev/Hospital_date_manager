@@ -120,6 +120,26 @@ Create `chatbot/.env` from `chatbot/.env.example` when using Ollama or Gemini.
 
 Use these settings to enable local GPU inference for an RTX 4060 via Ollama, while keeping the same model.
 
+### Download the Qwen Ollama model locally
+
+If you want to run the chatbot with the same model locally, install and pull it with:
+
+```bash
+ollama pull qwen3:8b
+```
+
+If you want to create a local alias for the repo-specific setup:
+
+```bash
+ollama create hospital-model -f ./models/ollama/Modelfile
+```
+
+You can verify the installed model with:
+
+```bash
+ollama list
+```
+
 ## Running the Web API Demo
 
 Run the FastAPI app:
