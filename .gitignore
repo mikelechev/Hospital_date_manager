@@ -1,4 +1,61 @@
+# Sensitive credentials and API keys
 api_key.txt
+.env
+.env.local
+.env.*
+!chatbot/.env.example
+
+# Python virtual environment
 .venv/
+venv/
+ENV/
+env/
+
+# Python bytecode
 __pycache__/
 *.py[cod]
+*$py.class
+
+# Pydantic/fastapi/runtime caches
+*.log
+
+# Streamlit and local app outputs
+chatbot/logs/
+chatbot/exports/
+
+# Model and data artifacts that should not be tracked if generated locally
+*.joblib
+*.pickle
+*.pkl
+*.jsonl
+
+# OS files
+.DS_Store
+.DS_Store?
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Editor configs
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Ollama and model cache
+~/.ollama/
+*.onnx
+*.bin
+
+# Mac/Linux temp files
+*~
+*.swp
+*.tmp
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
