@@ -59,3 +59,8 @@ Desktop.ini
 
 # Logs
 *.log
+
+# Local VS Code / Copilot agent state
+.agent.md
+.agents/
+.claude/

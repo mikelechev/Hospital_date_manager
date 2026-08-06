@@ -30,21 +30,19 @@ In other words, the system only doubles a slot when the risk of both patients ar
 
 ## Repository Contents
 
-| File | Purpose |
-| --- | --- |
-| `api.py` | Basic FastAPI demo with manual absence probability input and a small HTML dashboard. |
-| `api_2.py` | Main ML-backed FastAPI version. Loads `modelo_campeon.json`, predicts absence probability, and applies smart-slotting rules. |
-| `api_mejorada.py` | Alternative improved API/dashboard version with similar XGBoost prediction flow. |
-| `api_chatbot.py` | Chatbot-driven app. The patient talks naturally, an LLM extracts model fields, and the app predicts absence risk before booking. |
-| `python.py` | Minimal API-only version for checking available slots and booking manually. |
-| `simulacion.py` | Single historical backtest using `dataset_limpio.csv` and `modelo_campeon.json`. |
-| `mc.py` | Monte Carlo simulation over 1000 historical scenarios using the raw XGBoost model. |
-| `mc_2.py` | Monte Carlo simulation with isotonic probability calibration in memory before evaluation. |
-| `dataset_limpio.csv` | Clean dataset used by the simulations. Contains 22,106 rows including the target `No-show`. |
-| `modelo_campeon.json` | Native XGBoost model used by the API and simulations. |
-| `mejor_modelo_xgb.joblib` | Serialized XGBoost model artifact, likely from an earlier training/export workflow. |
-| `calibrated_isotonic_model.joblib` | Serialized calibrated model artifact. The current `mc_2.py` calibrates in memory instead of loading this file. |
-| `mikel A` | Small text note file. |
+| Path                                      | Purpose                                                                                                                          |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `src/api.py`                              | Main compatibility entrypoint for the web app. Keeps the old path working while pointing to the consolidated scheduler.          |
+| `src/api_2.py`                            | Canonical ML-backed FastAPI app. Loads the XGBoost model, predicts absence probability, and applies smart-slotting rules.        |
+| `src/api_chatbot.py`                      | Chatbot-driven app. The patient talks naturally, an LLM extracts model fields, and the app predicts absence risk before booking. |
+| `scripts/simulacion.py`                   | Single historical backtest using the dataset and the trained model.                                                              |
+| `scripts/mc.py`                           | Monte Carlo simulation over 1000 historical scenarios using the raw XGBoost model.                                               |
+| `scripts/mc_2.py`                         | Monte Carlo simulation with isotonic probability calibration in memory before evaluation.                                        |
+| `data/dataset_limpio.csv`                 | Clean dataset used by the simulations. Contains 22,106 rows including the target `No-show`.                                      |
+| `models/modelo_campeon.json`              | Native XGBoost model used by the API and simulations.                                                                            |
+| `models/mejor_modelo_xgb.joblib`          | Serialized XGBoost model artifact, likely from an earlier training/export workflow.                                              |
+| `models/calibrated_isotonic_model.joblib` | Serialized calibrated model artifact. The current simulation script calibrates in memory instead of loading this file.           |
+| `mikel A`                                 | Small text note file.                                                                                                            |
 
 ## Model Inputs
 
@@ -85,10 +83,10 @@ pip install -r requirements.txt
 
 ## Running the Web Demo
 
-The most complete API demo is `api_2.py`:
+The main API demo is `src/api_2.py` (and `src/api.py` remains as a compatibility wrapper):
 
 ```bash
-python3 api_2.py
+python3 src/api_2.py
 ```
 
 Then open:
@@ -125,7 +123,7 @@ curl -X POST http://localhost:8000/api/evaluar-y-reservar \
 Run the conversational version:
 
 ```bash
-python3 api_chatbot.py
+python3 src/api_chatbot.py
 ```
 
 Then open:
@@ -159,19 +157,19 @@ Chatbot routes:
 Run a single empirical backtest:
 
 ```bash
-python3 simulacion.py
+python3 scripts/simulacion.py
 ```
 
 Run the raw Monte Carlo simulation:
 
 ```bash
-python3 mc.py
+python3 scripts/mc.py
 ```
 
 Run the calibrated Monte Carlo simulation:
 
 ```bash
-python3 mc_2.py
+python3 scripts/mc_2.py
 ```
 
 The simulation scripts compare:
