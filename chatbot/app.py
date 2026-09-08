@@ -32,32 +32,48 @@ from chatbot.prediction.predictor import Predictor
 logger = logging.getLogger(__name__)
 
 # --------------------------------------------------------------------------- #
-# Page config + CSS (done once, at import time, not re-injected every rerun)
+# Page config + CSS
+#
+# Extracted into functions (instead of executed at import time) so this
+# module can be reused as one tab of the combined portal
+# (see app_unificado.py at the project root) without forcing its own page
+# config or re-injecting CSS at import time. Standalone execution
+# (`streamlit run chatbot/app.py`) is unaffected: main() below still calls
+# configure_page() once, exactly like before.
 # --------------------------------------------------------------------------- #
 
-st.set_page_config(
-    page_title="Asistente de Admisión Hospitalaria",
-    page_icon="🏥",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+def configure_page() -> None:
+    """Sets the Streamlit page config. Call at most once per app run, before
+    any other Streamlit command. Only the script that owns the process
+    should call it (this file in standalone mode, or app_unificado.py when
+    this tab is embedded in the combined portal)."""
+    st.set_page_config(
+        page_title="Asistente de Admisión Hospitalaria",
+        page_icon="🏥",
+        layout="wide",
+        initial_sidebar_state="expanded",
+    )
 
-st.markdown(
-    """
-    <style>
-    .chat-bubble { padding:10px; border-radius:10px; margin:8px 0; max-width:75%; }
-    .chat-user { background:#e6f2ff; margin-left:auto; }
-    .chat-assistant { background:#f1f8e9; margin-right:auto; }
-    .chat-meta { font-size:0.8em; color:#666; margin-bottom:6px; }
-    .risk-badge { padding:8px 12px; border-radius:6px; color:#fff; font-weight:600; display:inline-block;}
-    .risk-high { background:#d32f2f; }
-    .risk-medium { background:#f57c00; }
-    .risk-low { background:#2e7d32; }
-    .small-note { font-size:0.9em; color:#666; }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+
+def inject_css() -> None:
+    """Injects this tab's CSS. Idempotent/cheap — safe to call on every rerun."""
+    st.markdown(
+        """
+        <style>
+        .chat-bubble { padding:10px; border-radius:10px; margin:8px 0; max-width:75%; }
+        .chat-user { background:#e6f2ff; margin-left:auto; }
+        .chat-assistant { background:#f1f8e9; margin-right:auto; }
+        .chat-meta { font-size:0.8em; color:#666; margin-bottom:6px; }
+        .risk-badge { padding:8px 12px; border-radius:6px; color:#fff; font-weight:600; display:inline-block;}
+        .risk-high { background:#d32f2f; }
+        .risk-medium { background:#f57c00; }
+        .risk-low { background:#2e7d32; }
+        .small-note { font-size:0.9em; color:#666; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
 
 PROVIDERS = ["ollama", "gemini", "openai", "claude", "custom"]
 
@@ -623,7 +639,12 @@ def render_patient_status(state_dump: Dict[str, Any], missing_fields: list) -> N
 # Main
 # --------------------------------------------------------------------------- #
 
-def main() -> None:
+def render_chatbot_tab() -> None:
+    """Renders the full chatbot experience: CSS, sidebar config, chat and the
+    patient status/prediction panel. Does NOT call configure_page() — the
+    host script is responsible for page config (main() does it below for
+    standalone runs; app_unificado.py does it once for the whole portal)."""
+    inject_css()
     initialize_session()
 
     st.title("🏥 Asistente de Admisión Hospitalaria — Chatbot")
@@ -691,6 +712,12 @@ def main() -> None:
                         st.caption("(Fallback usado — modelo ausente)")
             except Exception as e:
                 st.error(f"Error mostrando estado/predicción: {e}")
+
+
+def main() -> None:
+    """Entry point for standalone execution: `streamlit run chatbot/app.py`."""
+    configure_page()
+    render_chatbot_tab()
 
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@ VENV="$ROOT/.venv"
 PY="$VENV/bin/python"
 PIP="$VENV/bin/pip"
 
-usage() { echo "Usage: $0 {setup|install|api|dashboard|chatbot|all|help}"; exit 1; }
+usage() { echo "Usage: $0 {setup|install|api|dashboard|chatbot|portal|all|help}"; exit 1; }
 
 case "${1:-}" in
   setup)
@@ -39,6 +39,11 @@ case "${1:-}" in
     if [ ! -d "$VENV" ]; then echo "Run '$0 setup' first"; exit 1; fi
     echo "Starting Streamlit chatbot (chatbot/app.py)"
     exec "$PY" -m streamlit run chatbot/app.py
+    ;;
+  portal)
+    if [ ! -d "$VENV" ]; then echo "Run '$0 setup' first"; exit 1; fi
+    echo "Starting unified patient portal (app_unificado.py: chatbot + agenda in one app)"
+    exec "$PY" -m streamlit run app_unificado.py
     ;;
   all)
     "$0" setup

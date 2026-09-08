@@ -7,6 +7,7 @@ The project includes:
 - A FastAPI smart-slotting demo in `src/api_2.py`.
 - A Streamlit dashboard in `scripts/app.py` for interactive scheduling and smart overbooking simulation.
 - A Streamlit chatbot UI in `chatbot/app.py` for conversational patient intake, clinical history upload, and export.
+- A unified Streamlit patient portal in `app_unificado.py` that combines the chatbot and the appointment-booking portal (`scripts/patient.py`) as two tabs of a single app.
 - LLM provider adapters for local Ollama and remote Gemini.
 - Export tooling for JSON and CSV conversation exports, plus full data exports with patient state and clinical history.
 - Backtesting and Monte Carlo scripts for comparing scheduling strategies.
@@ -31,7 +32,9 @@ The current booking rule in `src/api_2.py` uses the following criteria for a sec
 | Path                                      | Purpose                                                                                           |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | `README.md`                               | Unified documentation for the repository.                                                         |
+| `app_unificado.py`                        | Unified patient portal: chatbot + appointment booking as two tabs of one Streamlit app.           |
 | `scripts/app.py`                          | Streamlit dashboard for interactive scheduling and smart overbooking simulation.                  |
+| `scripts/patient.py`                      | Streamlit patient portal: TIS login, appointment grid, AI-assisted overbooking.                   |
 | `chatbot/app.py`                          | Streamlit chatbot UI with conversational intake, clinical history workflows, and export controls. |
 | `chatbot/.env.example`                    | Example environment file with local Ollama and Gemini settings.                                   |
 | `chatbot/requirements.txt`                | Chatbot-specific Python dependencies.                                                             |
@@ -140,6 +143,35 @@ The chatbot export module is implemented in `chatbot/exports/conversation_export
 - `save_clinical_history(...)`
 
 Exports are saved under `chatbot/exports/`, and saved clinical histories are stored in `chatbot/exports/clinical_histories/`.
+
+## Unified Patient Portal: `app_unificado.py`
+
+`app_unificado.py` combines the chatbot (`chatbot/app.py`) and the appointment-booking portal (`scripts/patient.py`) into a single Streamlit app with two tabs, so a patient can chat with the intake assistant and book a slot without switching between two separate apps/ports.
+
+It does not duplicate any logic: `chatbot/app.py` and `scripts/patient.py` were refactored so their page config and CSS/layout code live in functions (`configure_page()`, and `render_chatbot_tab()` / `render_agenda_tab()`) instead of running as a side effect of importing the module. `app_unificado.py` sets the page config once and then calls both `render_*_tab()` functions inside `st.tabs(...)`. Both original scripts are unaffected and still run standalone exactly as before:
+
+```bash
+streamlit run chatbot/app.py
+streamlit run scripts/patient.py
+```
+
+Run the unified portal from the project root:
+
+```bash
+streamlit run app_unificado.py
+```
+
+or:
+
+```bash
+./run.sh portal
+```
+
+Then open:
+
+```text
+http://localhost:8501
+```
 
 ## Local LLM and GPU Configuration
 

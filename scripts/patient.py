@@ -26,8 +26,23 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 
-# --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="Portal Paciente | E&M", layout="wide", initial_sidebar_state="collapsed")
+# --------------------------------------------------------------------------- #
+# Page config
+#
+# Extracted into a function (instead of executed at import time) so this
+# module can be reused as one tab of the combined portal
+# (see app_unificado.py at the project root) without forcing its own page
+# config. Standalone execution (`streamlit run scripts/patient.py`) is
+# unaffected: main() below still calls configure_page() once, exactly like
+# before.
+# --------------------------------------------------------------------------- #
+
+def configure_page() -> None:
+    """Sets the Streamlit page config. Call at most once per app run, before
+    any other Streamlit command. Only the script that owns the process
+    should call it (this file in standalone mode, or app_unificado.py when
+    this tab is embedded in the combined portal)."""
+    st.set_page_config(page_title="Portal Paciente | E&M", layout="wide", initial_sidebar_state="collapsed")
 
 # ==========================================
 # 🎨 SISTEMA DE DISEÑO
@@ -48,7 +63,9 @@ COLOR_ACCENT_FREE    = "#16A34A"
 COLOR_ACCENT_AI      = "#7C3AED"
 COLOR_ACCENT_MUTED   = "#9AA1AC"
 
-st.markdown(f"""
+def inject_css() -> None:
+    """Injects this tab's CSS. Idempotent/cheap — safe to call on every rerun."""
+    st.markdown(f"""
     <style>
     /* ---------- Base ---------- */
     header {{visibility: hidden;}}
@@ -217,7 +234,7 @@ st.markdown(f"""
         opacity: 0.9;
     }}
     </style>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
 # --- BASE DE DATOS DE PACIENTES AMPLIADA ---
 PACIENTES_DB = {
@@ -229,12 +246,13 @@ PACIENTES_DB = {
 }
 
 # --- ESTADOS DE SESIÓN ---
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
-if 'paciente_actual' not in st.session_state:
-    st.session_state.paciente_actual = None
-if 'cita_confirmada' not in st.session_state:
-    st.session_state.cita_confirmada = None
+def _init_session_state() -> None:
+    if 'logged_in' not in st.session_state:
+        st.session_state.logged_in = False
+    if 'paciente_actual' not in st.session_state:
+        st.session_state.paciente_actual = None
+    if 'cita_confirmada' not in st.session_state:
+        st.session_state.cita_confirmada = None
 
 # --- GENERADOR DE AGENDA ---
 @st.cache_data
@@ -267,124 +285,143 @@ def generar_mes_simulado():
         dias_generados += 1
     return pd.DataFrame(agenda)
 
-agenda_df = generar_mes_simulado()
+def render_agenda_tab() -> None:
+    """Renders the full appointment-booking portal: CSS, patient login,
+    the smart-overbooking agenda grid and the admin sidebar panel. Does
+    NOT call configure_page() — the host script is responsible for page
+    config (main() does it below for standalone runs; app_unificado.py
+    does it once for the whole portal)."""
+    inject_css()
+    _init_session_state()
 
-# --- LAYOUT: 70% PACIENTE (IZQUIERDA, BLANCO) / 30% ADMIN (DERECHA, GRIS) ---
-col_app, col_admin = st.columns([7, 3], gap="large")
+    agenda_df = generar_mes_simulado()
 
-# ==========================================
-# ⚙️ DERECHA: PANEL ADMIN (GRIS OSCURO)
-# ==========================================
-with col_admin:
-    with st.container(key="admin_panel"):
-        st.markdown('<span class="admin-eyebrow">Supervisor</span>', unsafe_allow_html=True)
-        st.markdown("### ⚙️ E&M Control IA")
-        st.caption("Dashboard de Supervisor")
-        st.divider()
+    # --- LAYOUT: 70% PACIENTE (IZQUIERDA, BLANCO) / 30% ADMIN (DERECHA, GRIS) ---
+    col_app, col_admin = st.columns([7, 3], gap="large")
 
-        umbral_ia = st.slider(
-            "Umbral de Overbooking",
-            min_value=0.10, max_value=0.90, value=0.60, step=0.05,
-            help="Si el titular o el paciente actual superan este riesgo, la IA habilita el slot."
-        )
+    # ==========================================
+    # ⚙️ DERECHA: PANEL ADMIN (GRIS OSCURO)
+    # ==========================================
+    with col_admin:
+        with st.container(key="admin_panel"):
+            st.markdown('<span class="admin-eyebrow">Supervisor</span>', unsafe_allow_html=True)
+            st.markdown("### ⚙️ E&M Control IA")
+            st.caption("Dashboard de Supervisor")
+            st.divider()
 
-        st.divider()
-        st.markdown("#### 📋 Base de Datos Demo")
-        st.code("""ID: 111 (Mikel  - Riesgo: 10%)
+            umbral_ia = st.slider(
+                "Umbral de Overbooking",
+                min_value=0.10, max_value=0.90, value=0.60, step=0.05,
+                help="Si el titular o el paciente actual superan este riesgo, la IA habilita el slot."
+            )
+
+            st.divider()
+            st.markdown("#### 📋 Base de Datos Demo")
+            st.code("""ID: 111 (Mikel  - Riesgo: 10%)
 ID: 222 (Ane    - Riesgo: 85%)
 ID: 333 (Jon    - Riesgo: 35%)
 ID: 444 (Maite  - Riesgo: 65%)
 ID: 555 (Aitor  - Riesgo: 5%)""")
-        st.info("💡 Cambia el umbral y observa cómo la IA abre o cierra huecos en tiempo real.")
+            st.info("💡 Cambia el umbral y observa cómo la IA abre o cierra huecos en tiempo real.")
 
-# ==========================================
-# 📱 IZQUIERDA: APP PACIENTE (BLANCO)
-# ==========================================
-with col_app:
-    with st.container(key="patient_panel"):
-        col_logo, col_titulo = st.columns([1, 8])
-        col_logo.image("https://cdn-icons-png.flaticon.com/512/2966/2966327.png", width=52)
-        with col_titulo:
-            st.markdown('<span class="patient-eyebrow">Portal del paciente</span>', unsafe_allow_html=True)
-            st.title("Portal OsasunFlow")
+    # ==========================================
+    # 📱 IZQUIERDA: APP PACIENTE (BLANCO)
+    # ==========================================
+    with col_app:
+        with st.container(key="patient_panel"):
+            col_logo, col_titulo = st.columns([1, 8])
+            col_logo.image("https://cdn-icons-png.flaticon.com/512/2966/2966327.png", width=52)
+            with col_titulo:
+                st.markdown('<span class="patient-eyebrow">Portal del paciente</span>', unsafe_allow_html=True)
+                st.title("Portal OsasunFlow")
 
-        if not st.session_state.logged_in:
-            st.markdown("##### Acceso de Pacientes")
-            with st.form("login_form"):
-                paciente_id = st.text_input("Introduzca su Nº de Tarjeta Sanitaria (TIS)", placeholder="Ej: 111, 222, 333...")
-                submit = st.form_submit_button("Escanear TIS y Acceder", type="primary", use_container_width=True)
+            if not st.session_state.logged_in:
+                st.markdown("##### Acceso de Pacientes")
+                with st.form("login_form"):
+                    paciente_id = st.text_input("Introduzca su Nº de Tarjeta Sanitaria (TIS)", placeholder="Ej: 111, 222, 333...")
+                    submit = st.form_submit_button("Escanear TIS y Acceder", type="primary", use_container_width=True)
 
-                if submit:
-                    if paciente_id in PACIENTES_DB:
-                        st.session_state.logged_in = True
-                        st.session_state.paciente_actual = PACIENTES_DB[paciente_id]
-                        st.rerun()
-                    else:
-                        st.error("❌ Paciente no encontrado en la base de datos.")
+                    if submit:
+                        if paciente_id in PACIENTES_DB:
+                            st.session_state.logged_in = True
+                            st.session_state.paciente_actual = PACIENTES_DB[paciente_id]
+                            st.rerun()
+                        else:
+                            st.error("❌ Paciente no encontrado en la base de datos.")
 
-        elif st.session_state.logged_in and not st.session_state.cita_confirmada:
-            paciente = st.session_state.paciente_actual
-            riesgo_paciente = paciente['riesgo_propio']
+            elif st.session_state.logged_in and not st.session_state.cita_confirmada:
+                paciente = st.session_state.paciente_actual
+                riesgo_paciente = paciente['riesgo_propio']
 
-            c1, c2 = st.columns([4, 1])
-            c1.subheader(f"👤 Bienvenido/a, {paciente['nombre']}")
-            c1.markdown(f"**Perfil:** {paciente['historial']} &nbsp;·&nbsp; **Riesgo IA:** {riesgo_paciente*100:.0f}%")
+                c1, c2 = st.columns([4, 1])
+                c1.subheader(f"👤 Bienvenido/a, {paciente['nombre']}")
+                c1.markdown(f"**Perfil:** {paciente['historial']} &nbsp;·&nbsp; **Riesgo IA:** {riesgo_paciente*100:.0f}%")
 
-            if c2.button("Cerrar Sesión", use_container_width=True):
-                st.session_state.logged_in = False
-                st.session_state.paciente_actual = None
-                st.rerun()
+                if c2.button("Cerrar Sesión", use_container_width=True):
+                    st.session_state.logged_in = False
+                    st.session_state.paciente_actual = None
+                    st.rerun()
 
-            st.divider()
-            st.markdown("#### Seleccione una fecha para su cita")
+                st.divider()
+                st.markdown("#### Seleccione una fecha para su cita")
 
-            dias_unicos = agenda_df['fecha'].unique()
-            SLOTS_POR_FILA = 4  # 4 columnas -> cuadrícula ordenada por hora
+                dias_unicos = agenda_df['fecha'].unique()
+                SLOTS_POR_FILA = 4  # 4 columnas -> cuadrícula ordenada por hora
 
-            for dia in dias_unicos:
-                with st.expander(f"📅 {dia}", expanded=(dia == dias_unicos[0])):
-                    df_dia = agenda_df[agenda_df['fecha'] == dia].reset_index(drop=True)
+                for dia in dias_unicos:
+                    with st.expander(f"📅 {dia}", expanded=(dia == dias_unicos[0])):
+                        df_dia = agenda_df[agenda_df['fecha'] == dia].reset_index(drop=True)
 
-                    # Una fila de columnas NUEVA por cada grupo de 4 horas:
-                    # así las celdas de una misma fila son hermanas en el
-                    # mismo contenedor flex y se alinean de verdad.
-                    for fila_inicio in range(0, len(df_dia), SLOTS_POR_FILA):
-                        fila_slots = df_dia.iloc[fila_inicio:fila_inicio + SLOTS_POR_FILA]
-                        row_cols = st.columns(SLOTS_POR_FILA)
+                        # Una fila de columnas NUEVA por cada grupo de 4 horas:
+                        # así las celdas de una misma fila son hermanas en el
+                        # mismo contenedor flex y se alinean de verdad.
+                        for fila_inicio in range(0, len(df_dia), SLOTS_POR_FILA):
+                            fila_slots = df_dia.iloc[fila_inicio:fila_inicio + SLOTS_POR_FILA]
+                            row_cols = st.columns(SLOTS_POR_FILA)
 
-                        for col_idx, (_, slot) in enumerate(fila_slots.iterrows()):
-                            hora = slot['hora_str']
-                            estado = slot['estado_base']
-                            riesgo_titular = slot['riesgo_titular']
-                            condicion_overbooking = (riesgo_titular >= umbral_ia) or (riesgo_paciente >= umbral_ia)
+                            for col_idx, (_, slot) in enumerate(fila_slots.iterrows()):
+                                hora = slot['hora_str']
+                                estado = slot['estado_base']
+                                riesgo_titular = slot['riesgo_titular']
+                                condicion_overbooking = (riesgo_titular >= umbral_ia) or (riesgo_paciente >= umbral_ia)
 
-                            with row_cols[col_idx]:
-                                if estado == "Libre":
-                                    st.markdown(f'<div class="slot-card"><b>{hora}</b><br>✅ Libre</div>', unsafe_allow_html=True)
-                                    if st.button("Reservar", key=f"btn_{dia}_{hora}", use_container_width=True):
-                                        st.session_state.cita_confirmada = f"{dia} a las {hora}"
-                                        st.rerun()
+                                with row_cols[col_idx]:
+                                    if estado == "Libre":
+                                        st.markdown(f'<div class="slot-card"><b>{hora}</b><br>✅ Libre</div>', unsafe_allow_html=True)
+                                        if st.button("Reservar", key=f"btn_{dia}_{hora}", use_container_width=True):
+                                            st.session_state.cita_confirmada = f"{dia} a las {hora}"
+                                            st.rerun()
 
-                                elif estado == "Ocupado" and condicion_overbooking:
-                                    st.markdown(f'<div class="slot-overbooking"><b>{hora}</b><br>✨ SmartSlot</div>', unsafe_allow_html=True)
-                                    if st.button("Reservar ", key=f"ob_{dia}_{hora}", use_container_width=True):
-                                        st.session_state.cita_confirmada = f"{dia} a las {hora} (Optimizada por IA)"
-                                        st.rerun()
+                                    elif estado == "Ocupado" and condicion_overbooking:
+                                        st.markdown(f'<div class="slot-overbooking"><b>{hora}</b><br>✨ SmartSlot</div>', unsafe_allow_html=True)
+                                        if st.button("Reservar ", key=f"ob_{dia}_{hora}", use_container_width=True):
+                                            st.session_state.cita_confirmada = f"{dia} a las {hora} (Optimizada por IA)"
+                                            st.rerun()
 
-                                else:  # Ocupado, sin overbooking
-                                    st.markdown(f'<div class="slot-full"><b>{hora}</b><br>❌ Ocupado</div>', unsafe_allow_html=True)
-                                    st.button("No disponible", key=f"na_{dia}_{hora}", use_container_width=True, disabled=True)
+                                    else:  # Ocupado, sin overbooking
+                                        st.markdown(f'<div class="slot-full"><b>{hora}</b><br>❌ Ocupado</div>', unsafe_allow_html=True)
+                                        st.button("No disponible", key=f"na_{dia}_{hora}", use_container_width=True, disabled=True)
 
-        elif st.session_state.cita_confirmada:
-            st.success("🎉 Cita agendada correctamente.")
-            st.markdown(f"""
+            elif st.session_state.cita_confirmada:
+                st.success("🎉 Cita agendada correctamente.")
+                st.markdown(f"""
             ### 🎫 Resumen de Cita
             * **Paciente:** {st.session_state.paciente_actual['nombre']}
             * **Fecha y Hora:** {st.session_state.cita_confirmada}
             """)
 
-            if st.button("Volver al Inicio", type="primary"):
-                st.session_state.logged_in = False
-                st.session_state.cita_confirmada = None
-                st.session_state.paciente_actual = None
-                st.rerun()
+                if st.button("Volver al Inicio", type="primary"):
+                    st.session_state.logged_in = False
+                    st.session_state.cita_confirmada = None
+                    st.session_state.paciente_actual = None
+                    st.rerun()
+
+
+def main() -> None:
+    """Entry point for standalone execution: `streamlit run scripts/patient.py`."""
+    configure_page()
+    render_agenda_tab()
+
+
+if __name__ == "__main__":
+    main()
