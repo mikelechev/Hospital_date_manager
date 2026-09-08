@@ -5,7 +5,7 @@ Módulo encargado de interpretar el JSON del LLM y actualizar el estado[cite: 2]
 import json
 import logging
 from typing import Dict, Any, Tuple
-from .patient_state import PatientState
+from chatbot.conversation.patient_state import PatientState
 
 logger = logging.getLogger(__name__)
 

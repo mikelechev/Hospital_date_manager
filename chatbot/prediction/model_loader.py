@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional
 import xgboost as xgb
 
-from config import PREDICT_CONFIG
+from chatbot.config import PREDICT_CONFIG
 
 logger = logging.getLogger(__name__)
 

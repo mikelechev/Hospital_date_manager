@@ -64,3 +64,6 @@ Desktop.ini
 .agent.md
 .agents/
 .claude/
+.env.enc
+*.pyc
+node_modules/

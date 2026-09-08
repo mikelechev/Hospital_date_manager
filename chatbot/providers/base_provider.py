@@ -26,7 +26,13 @@ class BaseProvider(ABC):
         Returns:
             str: Respuesta generada por el modelo, estrictamente limpiada de formato Markdown.
         """
-        pass
+        raise NotImplementedError()
+
+    def list_models(self) -> list:
+        """
+        Devuelve una lista de modelos disponibles en el proveedor.
+        """
+        raise NotImplementedError()
 
     def _clean_json_response(self, raw_response: str) -> str:
         """

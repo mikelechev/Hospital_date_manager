@@ -31,12 +31,18 @@ class ModelConfig:
     """Configuración inmutable para los proveedores LLM."""
     ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
+    openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
+    claude_api_key: str = os.getenv("CLAUDE_API_KEY", "")
     default_provider: str = os.getenv("DEFAULT_PROVIDER", "ollama")
     default_model: str = os.getenv("DEFAULT_MODEL", "qwen3:8b")
     gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    claude_model: str = os.getenv("CLAUDE_MODEL", "claude-2.1")
+    claude_base_url: str = os.getenv("CLAUDE_BASE_URL", "https://api.anthropic.com")
     temperature: float = 0.0
     max_tokens: int = 1500
     request_timeout: int = int(os.getenv("LLM_TIMEOUT", "120"))
+    openai_base_url: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com")
 
 @dataclass
 class PredictionConfig:
