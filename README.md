@@ -1,236 +1,67 @@
 # Hospital Date Manager
 
-Hospital Date Manager is a prototype for hospital appointment optimization. It combines an AI-assisted conversational intake flow with traditional scheduling and smart overbooking logic.
+Prototipo de optimización de citas hospitalarias: combina un flujo de admisión conversacional con IA, agendamiento tradicional y una lógica de "overbooking" (sobreventa) inteligente basada en el riesgo de que el paciente falte.
 
-The project includes:
+El repo tiene **cuatro aplicaciones independientes** (no dependen entre sí, puedes levantar solo la que te interese) más scripts de simulación. Todas se ejecutan desde la raíz del proyecto (`Hospital_date_manager/`).
 
-- A FastAPI smart-slotting demo in `src/api_2.py`.
-- A Streamlit dashboard in `scripts/app.py` for interactive scheduling and smart overbooking simulation.
-- A Streamlit chatbot UI in `chatbot/app.py` for conversational patient intake, clinical history upload, and export.
-- A unified Streamlit patient portal in `app_unificado.py` that combines the chatbot and the appointment-booking portal (`scripts/patient.py`) as two tabs of a single app.
-- LLM provider adapters for local Ollama and remote Gemini.
-- Export tooling for JSON and CSV conversation exports, plus full data exports with patient state and clinical history.
-- Backtesting and Monte Carlo scripts for comparing scheduling strategies.
+## 0. Instalación (una sola vez)
 
-## Project Context
+Con `run.sh` (recomendado, crea el entorno virtual e instala todo):
 
-Hospitals lose capacity when patients miss appointments. This prototype explores a risk-aware scheduling policy:
+```bash
+./run.sh setup
+```
 
-1. Estimate each patient’s absence probability.
-2. Book regular appointments when the slot is empty.
-3. Approve a second booking only when the combined risk is low.
-4. Block overbooking when two patients are likely to arrive simultaneously.
-
-The current booking rule in `src/api_2.py` uses the following criteria for a second patient in the same slot:
-
-- `prob_ambos_vienen < 0.25`
-- `prob_al_menos_uno_venga > 0.8`
-- Maximum of two patients per time slot.
-
-## Repository Contents
-
-| Path                                      | Purpose                                                                                           |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `README.md`                               | Unified documentation for the repository.                                                         |
-| `app_unificado.py`                        | Unified patient portal: chatbot + appointment booking as two tabs of one Streamlit app.           |
-| `scripts/app.py`                          | Streamlit dashboard for interactive scheduling and smart overbooking simulation.                  |
-| `scripts/patient.py`                      | Streamlit patient portal: TIS login, appointment grid, AI-assisted overbooking.                   |
-| `chatbot/app.py`                          | Streamlit chatbot UI with conversational intake, clinical history workflows, and export controls. |
-| `chatbot/.env.example`                    | Example environment file with local Ollama and Gemini settings.                                   |
-| `chatbot/requirements.txt`                | Chatbot-specific Python dependencies.                                                             |
-| `chatbot/exports/`                        | Generated conversation exports and saved clinical histories.                                      |
-| `chatbot/conversation/`                   | Conversation state, prompt building, extraction, and LLM coordination.                            |
-| `chatbot/providers/`                      | Provider adapters for Ollama and Gemini.                                                          |
-| `chatbot/config.py`                       | Chatbot runtime configuration and environment loading.                                            |
-| `src/api_2.py`                            | Main FastAPI app for slot booking, agenda status, and XGBoost-based risk prediction.              |
-| `scripts/simulacion.py`                   | Empirical historical backtest.                                                                    |
-| `scripts/mc.py`                           | Monte Carlo simulation using the raw model.                                                       |
-| `scripts/mc_2.py`                         | Monte Carlo simulation with isotonic probability calibration in memory.                           |
-| `data/dataset_limpio.csv`                 | Clean dataset used by the simulation scripts.                                                     |
-| `models/modelo_campeon.json`              | XGBoost model artifact loaded by `src/api_2.py` when available.                                   |
-| `models/modelo_definitivo.joblib`         | Joblib model loaded by `scripts/app.py` for the interactive dashboard.                            |
-| `models/voting_clf.joblib`               | Alternative serialized model artifact.                                                            |
-| `models/calibrated_isotonic_model.joblib` | Serialized calibration artifact for model evaluation workflows.                                   |
-
-## Setup
-
-1. Create and activate a virtual environment:
+O manualmente:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-```
-
-2. Install the repo dependencies:
-
-```bash
 pip install -r requirements.txt
-```
-
-3. Install chatbot dependencies for the Streamlit UI:
-
-```bash
 pip install -r chatbot/requirements.txt
 ```
 
-## Streamlit Dashboard: `scripts/app.py`
-
-The file `scripts/app.py` contains the interactive Hospital Smart Slotting dashboard. It is separate from the conversational chatbot in `chatbot/app.py` and includes:
-
-- Three operating scenarios: fixed traditional scheduling, flexible traditional scheduling, and AI-assisted overbooking.
-- A configurable number of patients and simulation days.
-- Appointment slots, scheduled breaks, end-of-shift administrative time, and patient no-show outcomes.
-- A planned-agenda view and a real-attendance view.
-- Animated monthly heatmaps showing empty slots, attendance, delays, breaks, reports, and early arrivals.
-- Risk, arrival-time, waiting-room, probability-density, cumulative-probability, and ROI charts.
-- The real no-show label from `data/dataset_limpio.csv` and predictions from `models/modelo_definitivo.joblib`.
-
-The dashboard expects these project files to exist:
-
-- `data/dataset_limpio.csv`
-- `models/modelo_definitivo.joblib`
-
-Run it from the project root (the folder containing `README.md`):
+A partir de aquí, cada vez que abras una terminal nueva, activa el entorno:
 
 ```bash
-streamlit run scripts/app.py
+source .venv/bin/activate
 ```
 
-Then open:
+---
 
-```text
-http://localhost:8501
-```
+## 1. API de Reservas — `src/api_2.py`
 
-If the virtual environment is being used on Windows, run Streamlit explicitly through it:
+**Qué hace:** simula la agenda de un consultorio con 4 huecos fijos (`09:00`, `09:15`, `09:30`, `09:45`). Al llegar una solicitud de cita, calcula la probabilidad de que el paciente falte y decide:
 
-```powershell
-.\.venv\Scripts\python.exe -m streamlit run scripts/app.py
-```
+- Hueco vacío → reserva normal.
+- Hueco con 1 paciente → permite un **segundo paciente (overbooking)** solo si `prob_ambos_vienen < 0.25` **y** `prob_al_menos_uno_venga > 0.8`.
+- Hueco con 2 pacientes → rechaza (saturado).
 
-The dashboard loads the joblib model when it starts, so `catboost` must be installed even though it is not imported directly in `scripts/app.py`: the serialized model contains a CatBoost component.
+La probabilidad de ausencia sale del modelo XGBoost `models/modelo_campeon.json` (ya incluido en el repo) o, si faltara, de una fórmula de respaldo basada en edad y días de antelación.
 
-## Running the Chatbot App
-
-Start the Streamlit chatbot UI from the project root:
-
-```bash
-streamlit run chatbot/app.py
-```
-
-Then open:
-
-```text
-http://localhost:8501
-```
-
-### Chatbot features
-
-- Conversational patient intake with natural language.
-- Clinical history upload or paste.
-- Same-provider LLM interpretation for clinical history and chat extraction.
-- Export conversation to JSON or CSV.
-- Full data export including patient state and clinical history references.
-- Optional anonymization of emails, phone numbers, and long numeric identifiers.
-
-### Export behavior
-
-The chatbot export module is implemented in `chatbot/exports/conversation_exporter.py`, with helpers:
-
-- `export_conversation_json(...)`
-- `export_conversation_csv(...)`
-- `export_full_data_csv(...)`
-- `save_clinical_history(...)`
-
-Exports are saved under `chatbot/exports/`, and saved clinical histories are stored in `chatbot/exports/clinical_histories/`.
-
-## Unified Patient Portal: `app_unificado.py`
-
-`app_unificado.py` combines the chatbot (`chatbot/app.py`) and the appointment-booking portal (`scripts/patient.py`) into a single Streamlit app with two tabs, so a patient can chat with the intake assistant and book a slot without switching between two separate apps/ports.
-
-It does not duplicate any logic: `chatbot/app.py` and `scripts/patient.py` were refactored so their page config and CSS/layout code live in functions (`configure_page()`, and `render_chatbot_tab()` / `render_agenda_tab()`) instead of running as a side effect of importing the module. `app_unificado.py` sets the page config once and then calls both `render_*_tab()` functions inside `st.tabs(...)`. Both original scripts are unaffected and still run standalone exactly as before:
-
-```bash
-streamlit run chatbot/app.py
-streamlit run scripts/patient.py
-```
-
-Run the unified portal from the project root:
-
-```bash
-streamlit run app_unificado.py
-```
-
-or:
-
-```bash
-./run.sh portal
-```
-
-Then open:
-
-```text
-http://localhost:8501
-```
-
-## Local LLM and GPU Configuration
-
-Create `chatbot/.env` from `chatbot/.env.example` when using Ollama or Gemini.
-
-`chatbot/.env.example` includes:
-
-- `DEFAULT_PROVIDER` (default: `ollama`)
-- `DEFAULT_MODEL` (default: `qwen3:8b`)
-- `GEMINI_API_KEY`
-- `OLLAMA_BASE_URL`
-- `OLLAMA_NO_CLOUD`
-- `OLLAMA_FLASH_ATTENTION`
-- `OLLAMA_IGPU_ENABLE`
-- `OLLAMA_MAX_LOADED_MODELS`
-- `OLLAMA_GPU_OVERHEAD`
-
-Use these settings to enable local GPU inference for an RTX 4060 via Ollama, while keeping the same model.
-
-### Download the Qwen Ollama model locally
-
-If you want to run the chatbot with the same model locally, install and pull it with:
-
-```bash
-ollama pull qwen3:8b
-```
-
-If you want to create a local alias for the repo-specific setup:
-
-```bash
-ollama create hospital-model -f ./models/ollama/Modelfile
-```
-
-You can verify the installed model with:
-
-```bash
-ollama list
-```
-
-## Running the Web API Demo
-
-Run the FastAPI app:
+**Cómo correrla:**
 
 ```bash
 python3 src/api_2.py
 ```
 
-Then open:
+o con recarga automática (uvicorn):
 
-```text
-http://localhost:8000
+```bash
+./run.sh api
 ```
 
-### API routes
+Se levanta en `http://localhost:8000`.
 
-- `GET /api/estado-agenda` — returns the current appointment agenda.
-- `POST /api/evaluar-y-reservar` — evaluates no-show risk and tries to reserve a slot.
+**Rutas disponibles:**
 
-### Example request
+| Ruta | Método | Qué hace |
+|---|---|---|
+| `/` | GET | Página de bienvenida en HTML |
+| `/api/estado-agenda` | GET | Devuelve el estado actual de los 4 huecos |
+| `/api/evaluar-y-reservar` | POST | Evalúa el riesgo de un paciente y reserva si procede |
+
+**Probarla con curl:**
 
 ```bash
 curl -X POST http://localhost:8000/api/evaluar-y-reservar \
@@ -246,50 +77,168 @@ curl -X POST http://localhost:8000/api/evaluar-y-reservar \
   }'
 ```
 
-### Model loading behavior
+> El estado de la agenda vive solo en memoria: se reinicia cada vez que reinicias la API.
 
-`src/api_2.py` loads `models/modelo_campeon.json` if present. If the file is missing, the API uses a fallback heuristic to compute absence probability.
+---
 
-## Running the Simulations
+## 2. Dashboard de Simulación — `scripts/app.py`
 
-- `python3 scripts/simulacion.py`
-- `python3 scripts/mc.py`
-- `python3 scripts/mc_2.py`
+**Qué hace:** simulador Monte Carlo que compara tres estrategias de agendamiento a lo largo de varios días (tradicional fijo, tradicional flexible, IA con overbooking inteligente), con mapas de calor animados y gráficas de riesgo/ROI usando `data/dataset_limpio.csv`.
 
-These scripts compare traditional scheduling with AI-assisted overbooking and simulated risk-based performance.
+**⚠️ No arranca tal cual todavía.** Necesita `models/modelo_definitivo.joblib`, que **no está en el repo** (solo existe `modelo_campeon.json`, que usa la API, no el dashboard). Para ponerlo a funcionar hace falta entrenar/generar ese `.joblib`, o adaptar el script para que reutilice `modelo_campeon.json`.
 
-## Model Inputs
+**Cómo correrlo (una vez resuelto el modelo):**
 
-The XGBoost model expects these features:
+```bash
+streamlit run scripts/app.py
+```
 
-- `Age`
-- `Scholarship`
-- `Hipertension`
-- `Diabetes`
-- `Alcoholism`
-- `Handcap`
-- `SMS_received`
-- `Days_between`
-- `Weekend`
-- `Ratio_Faltas`
-- `Gender_M`
-- `Scheduled_Time_of_Day_Evening`
-- `Scheduled_Time_of_Day_Morning`
+o:
 
-Target column:
+```bash
+./run.sh dashboard
+```
 
-- `No-show`
+Se abre en `http://localhost:8501`.
 
-## Notes
+El dashboard carga el `.joblib` al iniciar, así que `catboost` debe estar instalado aunque no se importe directamente (el modelo serializado contiene un componente CatBoost).
 
-- The chatbot UI is the primary conversational interface. The `src/chatbot.py` file is an empty compatibility placeholder.
-- Session, agenda, and extraction state are stored in memory. Restarting an app resets state.
-- `api_key.txt` and `.env` are ignored by Git and should contain secrets only.
-- This project is a prototype and not production-ready for real clinical deployment without validation, persistence, authentication, and privacy controls.
+---
 
-## Suggested Next Steps
+## 3. Chatbot de Admisión — `chatbot/app.py`
 
-- Add automated tests for booking rules, chat extraction, and exports.
-- Persist appointments, sessions, and clinical history in a database.
-- Add CI workflows for linting, formatting, and runtime validation.
-- Document model training and dataset preparation.
+**Qué hace:** interfaz conversacional donde el paciente describe su situación en lenguaje natural y un LLM extrae datos estructurados (edad, síntomas, antecedentes...) en tiempo real. Con suficientes datos, calcula la probabilidad de ausencia con el mismo modelo XGBoost (`chatbot/models/modelo_campeon.json`).
+
+Funciones principales:
+
+- **Chat libre** (columna izquierda).
+- **Panel de estado** (columna derecha): campos extraídos, confianza, campos faltantes.
+- **Ficha de historial clínico** (barra lateral): subir/pegar historial (`.txt`, `.pdf`, `.docx`) para extracción automática.
+- **Exportar**: CSV de la ficha actual o acumulado en `chatbot/exports/`.
+- **Selector de proveedor LLM**: `ollama`, `gemini`, `openai`, `claude` o `custom`, configurable en caliente desde la UI.
+
+**Cómo correrlo:**
+
+```bash
+streamlit run chatbot/app.py
+```
+
+o:
+
+```bash
+./run.sh chatbot
+```
+
+Se abre en `http://localhost:8501`.
+
+**Configurar el proveedor de LLM:**
+
+El proveedor por defecto se lee de `chatbot/.env` (crear a partir de `chatbot/.env.example`), variable `DEFAULT_PROVIDER` (por defecto `ollama`). Funciona sin ninguna API key si Ollama ya está corriendo localmente con un modelo descargado (verificado en este equipo: `qwen3:8b`).
+
+```bash
+ollama pull qwen3:8b   # si aún no lo tienes
+ollama list             # comprobar que está instalado
+```
+
+Para usar otro proveedor, hazlo desde la barra lateral de la app (desplegable "Proveedor" + "API Key"), o edita `chatbot/.env`:
+
+```env
+DEFAULT_PROVIDER=ollama        # ollama | gemini | openai | claude | custom
+DEFAULT_MODEL=qwen3:8b
+OLLAMA_BASE_URL=http://localhost:11434
+GEMINI_API_KEY=...
+OPENAI_API_KEY=...
+CLAUDE_API_KEY=...             # sk-ant-... , se obtiene en console.anthropic.com
+```
+
+`chatbot/.env` está en `.gitignore` — nunca se sube al repositorio.
+
+---
+
+## 4. Portal Unificado del Paciente — `app_unificado.py`
+
+**Qué hace:** combina el chatbot (`chatbot/app.py`) y el portal de reservas (`scripts/patient.py`) en una sola app de Streamlit con dos pestañas, para que el paciente chatee con el asistente de admisión y reserve un turno sin cambiar de puerto/app.
+
+No duplica lógica: ambos scripts originales fueron refactorizados para exponer `configure_page()` y `render_chatbot_tab()` / `render_agenda_tab()`; `app_unificado.py` configura la página una vez y llama a ambas funciones dentro de `st.tabs(...)`. Los scripts originales siguen funcionando igual por separado.
+
+**Cómo correrlo:**
+
+```bash
+streamlit run app_unificado.py
+```
+
+o:
+
+```bash
+./run.sh portal
+```
+
+Se abre en `http://localhost:8501`.
+
+---
+
+## Resumen rápido — todo se ejecuta con `./run.sh`
+
+`run.sh` es el único punto de entrada del proyecto: crea el entorno virtual, instala dependencias y arranca cualquier app o simulación. (El antiguo `chatbot/run.sh`, que creaba su propio entorno virtual duplicado dentro de `chatbot/`, se eliminó — todo pasa ahora por este script.)
+
+| Comando | Qué hace | Puerto | Requiere para funcionar |
+|---|---|---|---|
+| `./run.sh setup` | Crea `.venv`, instala todas las dependencias y genera `chatbot/.env` si no existe | — | — |
+| `./run.sh api` | API FastAPI de reservas (`src/api_2.py`) | 8000 | ✅ Nada extra (modelo ya incluido) |
+| `./run.sh dashboard` | Dashboard de simulación (`scripts/app.py`) | 8501 | ❌ Falta `models/modelo_definitivo.joblib` |
+| `./run.sh chatbot` | Chatbot de admisión (`chatbot/app.py`) | 8501 | ✅ Nada extra (Ollama local ya configurado) |
+| `./run.sh portal` | Portal unificado: chatbot + reservas (`app_unificado.py`) | 8501 | ✅ Igual que el chatbot |
+| `./run.sh sim` | Backtest histórico empírico (`scripts/simulacion.py`) | — | ✅ |
+| `./run.sh mc` | Monte Carlo, modelo crudo (`scripts/mc.py`) | — | ✅ |
+| `./run.sh mc2` | Monte Carlo con calibración isotónica (`scripts/mc_2.py`) | — | ✅ |
+| `./run.sh all` | Arranca la API en segundo plano (log en `logs/api.log`) + el portal unificado en primer plano | 8000 + 8501 | ✅ |
+| `./run.sh stop` | Detiene la API que quedó corriendo en segundo plano tras `./run.sh all` | — | — |
+| `./run.sh help` | Lista todos los comandos disponibles | — | — |
+
+> Nota: Streamlit siempre usa el puerto 8501 por defecto, así que no puedes tener `dashboard`, `chatbot` y `portal` corriendo a la vez sin indicar puertos distintos (`streamlit run <script> --server.port 8502`). La API sí puede convivir con cualquiera de ellas porque usa el puerto 8000 (por eso `./run.sh all` los combina).
+
+---
+
+## Estructura del repositorio
+
+| Ruta | Propósito |
+|---|---|
+| `app_unificado.py` | Portal unificado: chatbot + reservas en dos pestañas. |
+| `scripts/app.py` | Dashboard de simulación y overbooking inteligente. |
+| `scripts/patient.py` | Portal de paciente: login TIS, grilla de citas, overbooking asistido por IA. |
+| `chatbot/app.py` | UI del chatbot: intake conversacional, historial clínico, exportación. |
+| `chatbot/.env.example` | Ejemplo de configuración de Ollama/Gemini. |
+| `chatbot/exports/` | Exportaciones de conversaciones e historiales clínicos guardados. |
+| `chatbot/conversation/` | Estado de conversación, construcción de prompts, extracción y coordinación con el LLM. |
+| `chatbot/providers/` | Adaptadores de proveedor (Ollama, Gemini, OpenAI, Claude). |
+| `chatbot/config.py` | Configuración de runtime del chatbot y carga de entorno. |
+| `src/api_2.py` | API FastAPI: reserva de huecos, estado de agenda, predicción de riesgo con XGBoost. |
+| `scripts/simulacion.py` | Backtest histórico empírico. |
+| `scripts/mc.py` | Simulación Monte Carlo con el modelo crudo. |
+| `scripts/mc_2.py` | Simulación Monte Carlo con calibración isotónica en memoria. |
+| `data/dataset_limpio.csv` | Dataset limpio usado por los scripts de simulación. |
+| `models/modelo_campeon.json` | Artefacto XGBoost que carga `src/api_2.py`. |
+| `models/modelo_definitivo.joblib` | **Falta en el repo** — lo carga `scripts/app.py` para el dashboard. |
+| `models/voting_clf.joblib` | Artefacto de modelo alternativo. |
+| `models/calibrated_isotonic_model.joblib` | Artefacto de calibración para evaluación de modelos. |
+
+## Entradas del modelo (XGBoost)
+
+`Age`, `Scholarship`, `Hipertension`, `Diabetes`, `Alcoholism`, `Handcap`, `SMS_received`, `Days_between`, `Weekend`, `Ratio_Faltas`, `Gender_M`, `Scheduled_Time_of_Day_Evening`, `Scheduled_Time_of_Day_Morning`.
+
+Columna objetivo: `No-show`.
+
+## Notas
+
+- El chatbot es la interfaz conversacional principal; `src/chatbot.py` es un placeholder vacío de compatibilidad.
+- El estado de sesión, agenda y extracción vive en memoria — reiniciar una app resetea el estado.
+- `api_key.txt` y `.env` están ignorados por Git y solo deben contener secretos locales.
+- Este proyecto es un prototipo, no listo para producción sin validación clínica, persistencia, autenticación y controles de privacidad reales.
+
+## Próximos pasos sugeridos
+
+- Generar o adaptar `models/modelo_definitivo.joblib` para que el dashboard (`scripts/app.py`) arranque.
+- Añadir tests automatizados para reglas de reserva, extracción del chat y exportaciones.
+- Persistir citas, sesiones e historial clínico en una base de datos.
+- Añadir CI para linting, formato y validación en tiempo de ejecución.
+- Documentar el entrenamiento del modelo y la preparación del dataset.
