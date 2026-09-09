@@ -4,10 +4,12 @@ Implementa el patrón Factory.
 """
 
 import logging
-from .base_provider import BaseProvider
-from .ollama_provider import OllamaProvider
-from .gemini_provider import GeminiProvider
-from config import LLM_CONFIG
+from chatbot.providers.base_provider import BaseProvider
+from chatbot.providers.ollama_provider import OllamaProvider
+from chatbot.providers.gemini_provider import GeminiProvider
+from chatbot.providers.openai_provider import OpenAIProvider
+from chatbot.providers.claude_provider import ClaudeProvider
+from chatbot.config import LLM_CONFIG
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +36,10 @@ class ProviderFactory:
             return OllamaProvider()
         elif provider_name == "gemini":
             return GeminiProvider()
+        elif provider_name == "openai":
+            return OpenAIProvider()
+        elif provider_name == "claude":
+            return ClaudeProvider()
         else:
             error_msg = f"Proveedor no soportado: {provider_name}"
             logger.error(error_msg)

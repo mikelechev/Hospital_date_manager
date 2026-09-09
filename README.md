@@ -5,6 +5,7 @@ Hospital Date Manager is a prototype for hospital appointment optimization. It c
 The project includes:
 
 - A FastAPI smart-slotting demo in `src/api_2.py`.
+- A Streamlit dashboard in `scripts/app.py` for interactive scheduling and smart overbooking simulation.
 - A Streamlit chatbot UI in `chatbot/app.py` for conversational patient intake, clinical history upload, and export.
 - LLM provider adapters for local Ollama and remote Gemini.
 - Export tooling for JSON and CSV conversation exports, plus full data exports with patient state and clinical history.
@@ -30,6 +31,7 @@ The current booking rule in `src/api_2.py` uses the following criteria for a sec
 | Path                                      | Purpose                                                                                           |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | `README.md`                               | Unified documentation for the repository.                                                         |
+| `scripts/app.py`                          | Streamlit dashboard for interactive scheduling and smart overbooking simulation.                  |
 | `chatbot/app.py`                          | Streamlit chatbot UI with conversational intake, clinical history workflows, and export controls. |
 | `chatbot/.env.example`                    | Example environment file with local Ollama and Gemini settings.                                   |
 | `chatbot/requirements.txt`                | Chatbot-specific Python dependencies.                                                             |
@@ -43,7 +45,8 @@ The current booking rule in `src/api_2.py` uses the following criteria for a sec
 | `scripts/mc_2.py`                         | Monte Carlo simulation with isotonic probability calibration in memory.                           |
 | `data/dataset_limpio.csv`                 | Clean dataset used by the simulation scripts.                                                     |
 | `models/modelo_campeon.json`              | XGBoost model artifact loaded by `src/api_2.py` when available.                                   |
-| `models/mejor_modelo_xgb.joblib`          | Alternative serialized model artifact.                                                            |
+| `models/modelo_definitivo.joblib`         | Joblib model loaded by `scripts/app.py` for the interactive dashboard.                            |
+| `models/voting_clf.joblib`               | Alternative serialized model artifact.                                                            |
 | `models/calibrated_isotonic_model.joblib` | Serialized calibration artifact for model evaluation workflows.                                   |
 
 ## Setup
@@ -67,13 +70,49 @@ pip install -r requirements.txt
 pip install -r chatbot/requirements.txt
 ```
 
-## Running the Chatbot App
+## Streamlit Dashboard: `scripts/app.py`
 
-Start the Streamlit chatbot UI from the `chatbot` folder:
+The file `scripts/app.py` contains the interactive Hospital Smart Slotting dashboard. It is separate from the conversational chatbot in `chatbot/app.py` and includes:
+
+- Three operating scenarios: fixed traditional scheduling, flexible traditional scheduling, and AI-assisted overbooking.
+- A configurable number of patients and simulation days.
+- Appointment slots, scheduled breaks, end-of-shift administrative time, and patient no-show outcomes.
+- A planned-agenda view and a real-attendance view.
+- Animated monthly heatmaps showing empty slots, attendance, delays, breaks, reports, and early arrivals.
+- Risk, arrival-time, waiting-room, probability-density, cumulative-probability, and ROI charts.
+- The real no-show label from `data/dataset_limpio.csv` and predictions from `models/modelo_definitivo.joblib`.
+
+The dashboard expects these project files to exist:
+
+- `data/dataset_limpio.csv`
+- `models/modelo_definitivo.joblib`
+
+Run it from the project root (the folder containing `README.md`):
 
 ```bash
-cd chatbot
-streamlit run app.py
+streamlit run scripts/app.py
+```
+
+Then open:
+
+```text
+http://localhost:8501
+```
+
+If the virtual environment is being used on Windows, run Streamlit explicitly through it:
+
+```powershell
+.\.venv\Scripts\python.exe -m streamlit run scripts/app.py
+```
+
+The dashboard loads the joblib model when it starts, so `catboost` must be installed even though it is not imported directly in `scripts/app.py`: the serialized model contains a CatBoost component.
+
+## Running the Chatbot App
+
+Start the Streamlit chatbot UI from the project root:
+
+```bash
+streamlit run chatbot/app.py
 ```
 
 Then open:

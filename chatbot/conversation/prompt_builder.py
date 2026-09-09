@@ -7,11 +7,11 @@ import json
 import logging
 from typing import List, Dict
 
-from .patient_state import PatientState
-from .history_manager import HistoryManager
+from chatbot.conversation.patient_state import PatientState
+from chatbot.conversation.history_manager import HistoryManager
 
 logger = logging.getLogger(__name__)
-
+    
 class PromptBuilder:
     """
     Construye los mensajes para el LLM combinando instrucciones, historial y estado[cite: 2].
@@ -69,8 +69,8 @@ No incluyas texto fuera del JSON. No uses etiquetas Markdown en el output.
 
     CLINICAL_HISTORY_PROMPT_TEMPLATE = """
 Eres un asistente especializado en extracción de datos clínicos a partir de historias médicas.
-Vas a recibir un texto de historia clínica del paciente. Tu tarea es extraer variables estructuradas y solamente responder con JSON.
-No realices preguntas. No escribas explicaciones humanas. Solo devuelve el JSON con los mismos campos que usas en el chat.
+Vas a recibir un texto de historia clínica del paciente. Tu tarea es extraer variables estructuradas.
+No realices preguntas al paciente. No hay conversación: solo estás leyendo un documento.
 Si algún campo no aparece en el texto, usa null.
 
 Estado actual del paciente (puede ayudar a completar campos faltantes): {current_state}
@@ -78,7 +78,43 @@ Estado actual del paciente (puede ayudar a completar campos faltantes): {current
 Historia clínica:
 {clinical_history}
 
-Recuerda responder únicamente con un objeto JSON válido y con la estructura exacta indicada.
+REGLAS ESTRICTAS DE FORMATO (JSON OBLIGATORIO):
+Debes responder ÚNICAMENTE con un objeto JSON válido con la siguiente estructura exacta
+(la misma que usarías en el chat normal; "assistant_response" aquí debe ser un breve
+resumen en español, en tono natural, de lo que extrajiste del historial):
+{{
+  "assistant_response": "Resumen breve y natural de los datos extraídos del historial",
+  "conversation_analysis": {{
+    "intent": "extraccion_historial_clinico",
+    "emotion": "neutral",
+    "extracted_data": {{
+      "age": int o null,
+      "gender_m": 1 (hombre) o 0 (mujer) o null,
+      "hypertension": 1 o 0 o null,
+      "diabetes": 1 o 0 o null,
+      "alcoholism": 1 o 0 o null,
+      "handicap": 1 o 0 o null,
+      "sms_received": int o null,
+      "history_no_show": float o null,
+      "days_between": int o null,
+      "weekend": 1 o 0 o null,
+      "time_of_day": "string" o null,
+      "consultation_reason": "string" o null
+    }},
+    "confidence": {{
+      "age": float 0.0-1.0,
+      "gender_m": float 0.0-1.0,
+      "hypertension": float 0.0-1.0,
+      "diabetes": float 0.0-1.0,
+      "alcoholism": float 0.0-1.0,
+      "handicap": float 0.0-1.0
+    }},
+    "missing_fields": ["lista de campos que siguen faltando tras leer el historial"],
+    "next_goal": "",
+    "conversation_finished": false
+  }}
+}}
+No incluyas texto fuera del JSON. No uses etiquetas Markdown en el output.
 """
 
     def build_messages(self, history: HistoryManager, state: PatientState) -> List[Dict[str, str]]:

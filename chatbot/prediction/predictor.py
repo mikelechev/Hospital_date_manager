@@ -7,10 +7,10 @@ import logging
 import pandas as pd
 import numpy as np
 
-from conversation.patient_state import PatientState
-from config import PREDICT_CONFIG
-from .model_loader import ModelLoader
-from .prediction_result import PredictionResult
+from chatbot.conversation.patient_state import PatientState
+from chatbot.config import PREDICT_CONFIG
+from chatbot.prediction.model_loader import ModelLoader
+from chatbot.prediction.prediction_result import PredictionResult
 
 logger = logging.getLogger(__name__)
 

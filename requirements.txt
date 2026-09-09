@@ -1,7 +1,11 @@
 fastapi
 uvicorn
+streamlit
 pandas
 numpy
 xgboost
 scikit-learn
 joblib
+plotly
+scipy
+catboost

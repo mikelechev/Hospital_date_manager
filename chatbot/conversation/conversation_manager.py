@@ -5,11 +5,11 @@ Implementa el patrón Facade para interactuar con UI y Predictor[cite: 2, 4].
 
 import logging
 from typing import Tuple, Dict, Any
-from providers.base_provider import BaseProvider
-from .patient_state import PatientState
-from .history_manager import HistoryManager
-from .prompt_builder import PromptBuilder
-from .extractor import Extractor
+from chatbot.providers.base_provider import BaseProvider
+from chatbot.conversation.patient_state import PatientState
+from chatbot.conversation.history_manager import HistoryManager
+from chatbot.conversation.prompt_builder import PromptBuilder
+from chatbot.conversation.extractor import Extractor
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +69,16 @@ class ConversationManager:
             error_msg = f"Error crítico en el flujo conversacional: {str(e)}"
             logger.error(error_msg, exc_info=True)
             return "Lo siento, ha ocurrido un error técnico interno procesando su solicitud.", False
+
+    def get_provider_info(self) -> Dict[str, Any]:
+        """Devuelve metadata simple del proveedor y modelo usados en la última llamada.
+        Esto permite a la interfaz mostrar en tiempo real qué proveedor y modelo se emplearon.
+        """
+        info = {"provider": type(self.provider).__name__}
+        last_model = getattr(self.provider, "last_model_used", None) or getattr(self.provider, "model", None) or getattr(self.provider, "model_name", None)
+        last_meta = getattr(self.provider, "last_call_meta", None)
+        info.update({"model": last_model, "meta": last_meta})
+        return info
 
     def get_current_state(self) -> Dict[str, Any]:
         """Devuelve un volcado del estado actual para la interfaz o el predictor."""
