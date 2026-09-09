@@ -4,7 +4,11 @@ streamlit
 pandas
 numpy
 xgboost
-scikit-learn
+# Fijado a 1.8.x: models/modelo_definitivo.joblib se entrenó/serializó con
+# scikit-learn 1.8.0. Con 1.9.x el pickle falla al cargar
+# (ModuleNotFoundError: No module named '_loss', un módulo interno movido
+# entre versiones) y el dashboard (scripts/app.py) no arranca.
+scikit-learn==1.8.0
 joblib
 plotly
 scipy

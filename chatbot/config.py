@@ -38,7 +38,7 @@ class ModelConfig:
     default_model: str = os.getenv("DEFAULT_MODEL", "qwen3:8b")
     gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-    claude_model: str = os.getenv("CLAUDE_MODEL", "claude-2.1")
+    claude_model: str = os.getenv("CLAUDE_MODEL", "claude-sonnet-5")
     claude_base_url: str = os.getenv("CLAUDE_BASE_URL", "https://api.anthropic.com")
     groq_model: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
     # El SDK oficial `groq` ya antepone "/openai/v1" a cada endpoint
@@ -49,12 +49,22 @@ class ModelConfig:
     temperature: float = 0.0
     max_tokens: int = 1500
     request_timeout: int = int(os.getenv("LLM_TIMEOUT", "120"))
-    openai_base_url: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com")
+    # El SDK oficial `openai` espera la base con el segmento de versión
+    # incluido (a diferencia del SDK `groq`, que lo antepone él mismo):
+    # sin "/v1" las peticiones fallan con 404.
+    openai_base_url: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
 
 @dataclass
 class PredictionConfig:
-    """Configuración para el modelo XGBoost de No-Show."""
-    model_path: Path = BASE_DIR / "models" / "modelo_campeon.json"
+    """Configuración para el modelo de No-Show.
+
+    Usa el mismo artefacto que el dashboard de simulación
+    (scripts/app.py): models/modelo_definitivo.joblib, un
+    VotingClassifier (HistGradientBoosting + RandomForest) calibrado con
+    scikit-learn — reemplaza al antiguo modelo_campeon.json (XGBoost),
+    que solo tenía 13 de las 19 variables que este modelo espera.
+    """
+    model_path: Path = BASE_DIR.parent / "models" / "modelo_definitivo.joblib"
     risk_threshold_high: float = 0.8
     risk_threshold_medium: float = 0.5
 

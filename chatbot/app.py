@@ -915,6 +915,8 @@ FIELD_ICONS: Dict[str, str] = {
     "scholarship": "🎓",
     "sms_received": "📩",
     "history_no_show": "📊",
+    "citas_previas": "📋",
+    "faltas_previas": "🚫",
     "days_between": "📅",
     "weekend": "🗓️",
     "time_of_day": "⏰",

@@ -3,8 +3,14 @@ streamlit>=1.32.0
 pydantic>=2.6.0
 google-generativeai>=0.4.0
 python-dotenv>=1.0.1
-xgboost>=2.0.0
 pandas>=2.2.0
+# El predictor usa models/modelo_definitivo.joblib (VotingClassifier
+# calibrado), no XGBoost; el pin exacto vive en el requirements.txt raíz
+# porque el pickle solo carga con la versión de scikit-learn con la que
+# se entrenó.
 scikit-learn>=1.4.0
+joblib>=1.3.0
 google.genai
 groq==1.7.0
+openai>=1.50.0
+requests>=2.31.0

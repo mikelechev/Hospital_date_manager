@@ -33,7 +33,7 @@ class PatientVariable(BaseModel, Generic[T]):
 class PatientState(BaseModel):
     """
     Estado global estructurado del paciente.
-    Contiene todas las variables necesarias para el modelo XGBoost[cite: 4].
+    Contiene todas las variables necesarias para el modelo de predicción de No-Show[cite: 4].
     """
     age: PatientVariable[int] = Field(default_factory=PatientVariable)
     gender_m: PatientVariable[int] = Field(default_factory=PatientVariable)
@@ -44,6 +44,8 @@ class PatientState(BaseModel):
     scholarship: PatientVariable[int] = Field(default_factory=PatientVariable)
     sms_received: PatientVariable[int] = Field(default_factory=PatientVariable)
     history_no_show: PatientVariable[float] = Field(default_factory=PatientVariable)
+    citas_previas: PatientVariable[int] = Field(default_factory=PatientVariable)
+    faltas_previas: PatientVariable[int] = Field(default_factory=PatientVariable)
     days_between: PatientVariable[int] = Field(default_factory=PatientVariable)
     weekend: PatientVariable[int] = Field(default_factory=PatientVariable)
     time_of_day: PatientVariable[str] = Field(default_factory=PatientVariable)

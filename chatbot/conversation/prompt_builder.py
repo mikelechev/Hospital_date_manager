@@ -31,7 +31,12 @@ REGLAS ESTRICTAS DE CONVERSACIÓN:
 2. Escucha activamente. Si el paciente da información espontánea, asúmela.
 3. Haz ÚNICAMENTE UNA pregunta por turno.
 4. No repitas preguntas sobre información que ya tienes.
-5. El estado actual del paciente es: {current_state}
+5. Para el historial de faltas, prioriza preguntar cuántas citas médicas ha
+   tenido antes y a cuántas ha faltado (rellena "citas_previas" y
+   "faltas_previas" con esos números exactos). Solo si el paciente responde
+   con una proporción aproximada ("falto la mitad de las veces") sin dar
+   números concretos, usa "history_no_show" con ese valor entre 0 y 1.
+6. El estado actual del paciente es: {current_state}
 
 REGLAS ESTRICTAS DE FORMATO (JSON OBLIGATORIO):
 Debes responder ÚNICAMENTE con un objeto JSON válido con la siguiente estructura exacta:
@@ -47,8 +52,11 @@ Debes responder ÚNICAMENTE con un objeto JSON válido con la siguiente estructu
       "diabetes": 1 o 0 o null,
       "alcoholism": 1 o 0 o null,
       "handicap": 1 o 0 o null,
+      "scholarship": 1 o 0 o null,
       "sms_received": int o null,
       "history_no_show": float o null,
+      "citas_previas": int o null,
+      "faltas_previas": int o null,
       "days_between": int o null,
       "weekend": 1 o 0 o null,
       "time_of_day": "string" o null,
@@ -60,7 +68,16 @@ Debes responder ÚNICAMENTE con un objeto JSON válido con la siguiente estructu
       "hypertension": float 0.0-1.0,
       "diabetes": float 0.0-1.0,
       "alcoholism": float 0.0-1.0,
-      "handicap": float 0.0-1.0
+      "handicap": float 0.0-1.0,
+      "scholarship": float 0.0-1.0,
+      "sms_received": float 0.0-1.0,
+      "history_no_show": float 0.0-1.0,
+      "citas_previas": float 0.0-1.0,
+      "faltas_previas": float 0.0-1.0,
+      "days_between": float 0.0-1.0,
+      "weekend": float 0.0-1.0,
+      "time_of_day": float 0.0-1.0,
+      "consultation_reason": float 0.0-1.0
     }},
     "missing_fields": ["lista de campos que aún faltan"],
     "next_goal": "Qué vas a preguntar a continuación",
@@ -99,8 +116,11 @@ resumen en español, en tono natural, de lo que extrajiste del historial):
       "diabetes": 1 o 0 o null,
       "alcoholism": 1 o 0 o null,
       "handicap": 1 o 0 o null,
+      "scholarship": 1 o 0 o null,
       "sms_received": int o null,
       "history_no_show": float o null,
+      "citas_previas": int o null,
+      "faltas_previas": int o null,
       "days_between": int o null,
       "weekend": 1 o 0 o null,
       "time_of_day": "string" o null,
@@ -112,7 +132,16 @@ resumen en español, en tono natural, de lo que extrajiste del historial):
       "hypertension": float 0.0-1.0,
       "diabetes": float 0.0-1.0,
       "alcoholism": float 0.0-1.0,
-      "handicap": float 0.0-1.0
+      "handicap": float 0.0-1.0,
+      "scholarship": float 0.0-1.0,
+      "sms_received": float 0.0-1.0,
+      "history_no_show": float 0.0-1.0,
+      "citas_previas": float 0.0-1.0,
+      "faltas_previas": float 0.0-1.0,
+      "days_between": float 0.0-1.0,
+      "weekend": float 0.0-1.0,
+      "time_of_day": float 0.0-1.0,
+      "consultation_reason": float 0.0-1.0
     }},
     "missing_fields": ["lista de campos que siguen faltando tras leer el historial"],
     "next_goal": "",

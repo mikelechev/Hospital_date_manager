@@ -93,9 +93,10 @@ class GeminiProvider(BaseProvider):
                 else:
                     fallback_candidates.append("models/" + self.model_name)
 
-            # Recommended modern model
-            fallback_candidates.append("models/gemini-3.6-flash")
-            fallback_candidates.append("gemini-3.6-flash")
+            # Modelos vigentes conocidos, como último recurso
+            fallback_candidates.append("models/gemini-2.5-flash")
+            fallback_candidates.append("gemini-2.5-flash")
+            fallback_candidates.append("gemini-2.0-flash")
 
             tried = set()
             for candidate in fallback_candidates:
