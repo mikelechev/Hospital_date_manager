@@ -9,6 +9,7 @@ from typing import List, Dict
 
 from chatbot.conversation.patient_state import PatientState
 from chatbot.conversation.history_manager import HistoryManager
+from chatbot.i18n import DEFAULT_LANGUAGE, LLM_LANGUAGE_INSTRUCTIONS
 
 logger = logging.getLogger(__name__)
     
@@ -22,6 +23,8 @@ Eres un asistente conversacional avanzado en un entorno hospitalario.
 Tu objetivo NO es diagnosticar, NO es agendar citas y NO sustituyes a un médico.
 Tu ÚNICA función es conversar de forma natural y empática con el paciente para obtener la siguiente información:
 {missing_fields}
+
+IDIOMA: {language_instruction}
 
 REGLAS ESTRICTAS DE CONVERSACIÓN:
 1. NUNCA parezcas un formulario. Muestra empatía y naturalidad.
@@ -73,6 +76,8 @@ Vas a recibir un texto de historia clínica del paciente. Tu tarea es extraer va
 No realices preguntas al paciente. No hay conversación: solo estás leyendo un documento.
 Si algún campo no aparece en el texto, usa null.
 
+IDIOMA: {language_instruction}
+
 Estado actual del paciente (puede ayudar a completar campos faltantes): {current_state}
 
 Historia clínica:
@@ -117,29 +122,36 @@ resumen en español, en tono natural, de lo que extrajiste del historial):
 No incluyas texto fuera del JSON. No uses etiquetas Markdown en el output.
 """
 
-    def build_messages(self, history: HistoryManager, state: PatientState) -> List[Dict[str, str]]:
+    def build_messages(
+        self, history: HistoryManager, state: PatientState, language: str = DEFAULT_LANGUAGE
+    ) -> List[Dict[str, str]]:
         """Construye la lista final de mensajes para enviar al Provider."""
         missing = state.get_missing_critical_fields()
-        
+
         # Serializamos el estado actual de forma limpia para que el LLM lo entienda.
         # model_dump() devuelve un diccionario de diccionarios, por lo que usamos .get()
         state_dict = state.model_dump()
         current_state_dict = {
-            k: v.get("value") for k, v in state_dict.items() 
+            k: v.get("value") for k, v in state_dict.items()
             if isinstance(v, dict) and v.get("value") is not None
         }
-        
+
         system_content = self.SYSTEM_PROMPT_TEMPLATE.format(
             missing_fields=", ".join(missing) if missing else "Ninguna, tienes todos los datos.",
-            current_state=json.dumps(current_state_dict, ensure_ascii=False)
+            current_state=json.dumps(current_state_dict, ensure_ascii=False),
+            language_instruction=LLM_LANGUAGE_INSTRUCTIONS.get(
+                language, LLM_LANGUAGE_INSTRUCTIONS[DEFAULT_LANGUAGE]
+            ),
         )
-        
+
         messages = [{"role": "system", "content": system_content}]
         messages.extend(history.get_history())
-        
+
         return messages
 
-    def build_clinical_history_messages(self, state: PatientState, clinical_history: str) -> List[Dict[str, str]]:
+    def build_clinical_history_messages(
+        self, state: PatientState, clinical_history: str, language: str = DEFAULT_LANGUAGE
+    ) -> List[Dict[str, str]]:
         """Construye los mensajes para interpretar una historia clínica con el mismo extractor."""
         state_dict = state.model_dump()
         current_state_dict = {
@@ -150,6 +162,9 @@ No incluyas texto fuera del JSON. No uses etiquetas Markdown en el output.
         system_content = self.CLINICAL_HISTORY_PROMPT_TEMPLATE.format(
             current_state=json.dumps(current_state_dict, ensure_ascii=False),
             clinical_history=clinical_history,
+            language_instruction=LLM_LANGUAGE_INSTRUCTIONS.get(
+                language, LLM_LANGUAGE_INSTRUCTIONS[DEFAULT_LANGUAGE]
+            ),
         )
 
         return [{"role": "system", "content": system_content}]

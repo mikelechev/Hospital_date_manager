@@ -10,6 +10,7 @@ from chatbot.conversation.patient_state import PatientState
 from chatbot.conversation.history_manager import HistoryManager
 from chatbot.conversation.prompt_builder import PromptBuilder
 from chatbot.conversation.extractor import Extractor
+from chatbot.i18n import DEFAULT_LANGUAGE, t
 
 logger = logging.getLogger(__name__)
 
@@ -30,22 +31,23 @@ class ConversationManager:
         self.extractor = Extractor()
         logger.info("ConversationManager inicializado correctamente.")
 
-    def process_user_input(self, user_text: str) -> Tuple[str, bool]:
+    def process_user_input(self, user_text: str, language: str = DEFAULT_LANGUAGE) -> Tuple[str, bool]:
         """
         Procesa un nuevo mensaje del usuario y devuelve la respuesta del asistente.
-        
+
         Args:
             user_text: Mensaje de texto ingresado por el paciente.
-            
+            language: Idioma ("es"/"eu") en el que debe responder el asistente.
+
         Returns:
             Tuple[str, bool]: Respuesta natural del asistente y flag indicando si está listo para predecir.
         """
         logger.info("Procesando nuevo mensaje de usuario.")
         self.history.add_message("user", user_text)
-        
+
         try:
             # 1. Construir contexto
-            messages = self.prompt_builder.build_messages(self.history, self.state)
+            messages = self.prompt_builder.build_messages(self.history, self.state, language)
             
             # 2. Obtener respuesta del LLM
             llm_json_response = self.provider.generate_response(messages)
@@ -68,7 +70,7 @@ class ConversationManager:
         except Exception as e:
             error_msg = f"Error crítico en el flujo conversacional: {str(e)}"
             logger.error(error_msg, exc_info=True)
-            return "Lo siento, ha ocurrido un error técnico interno procesando su solicitud.", False
+            return t("generic_error_response", language), False
 
     def get_provider_info(self) -> Dict[str, Any]:
         """Devuelve metadata simple del proveedor y modelo usados en la última llamada.
@@ -84,12 +86,12 @@ class ConversationManager:
         """Devuelve un volcado del estado actual para la interfaz o el predictor."""
         return self.state.model_dump()
 
-    def process_clinical_history(self, text: str) -> Dict[str, Any]:
+    def process_clinical_history(self, text: str, language: str = DEFAULT_LANGUAGE) -> Dict[str, Any]:
         """Use the same LLM interpretation flow as normal chat to extract structured fields."""
         logger.info("Procesando clinical history a través del intérprete de chat.")
 
         try:
-            messages = self.prompt_builder.build_clinical_history_messages(self.state, text)
+            messages = self.prompt_builder.build_clinical_history_messages(self.state, text, language)
             llm_json_response = self.provider.generate_response(messages)
             assistant_reply, analysis = self.extractor.process_llm_response(llm_json_response, self.state)
             self.history.add_message("assistant", assistant_reply)

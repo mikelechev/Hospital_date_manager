@@ -21,6 +21,7 @@ from chatbot.config import LLM_CONFIG
 from chatbot.providers.provider_factory import ProviderFactory
 from chatbot.conversation.conversation_manager import ConversationManager
 from chatbot.prediction.predictor import Predictor
+from chatbot.i18n import DEFAULT_LANGUAGE, LANGUAGES, t
 
 # NOTA: la exportación de datos (JSON/CSV/histórico clínico) se hizo antes
 # mediante un módulo externo `exports` que nunca llegó a subirse al repo.
@@ -29,6 +30,17 @@ from chatbot.prediction.predictor import Predictor
 # así que no hace falta ese import.
 
 logger = logging.getLogger(__name__)
+
+
+def _current_language() -> str:
+    """Idioma activo de la UI/asistente ("es"/"eu"), con fallback seguro.
+
+    Usa st.session_state.get en vez de acceder directo, porque se llama
+    también antes de que initialize_session() haya corrido (p.ej. desde
+    configure_page()).
+    """
+    return st.session_state.get("language", DEFAULT_LANGUAGE)
+
 
 # --------------------------------------------------------------------------- #
 # Page config + CSS
@@ -51,7 +63,7 @@ def configure_page() -> None:
     should call it (this file in standalone mode, or app_unificado.py when
     this tab is embedded in the combined portal)."""
     st.set_page_config(
-        page_title="Asistente de Admisión Hospitalaria",
+        page_title=t("page_title", _current_language()),
         page_icon="🏥",
         layout="wide",
         initial_sidebar_state="expanded",
@@ -81,7 +93,7 @@ def inject_css() -> None:
 # usuario, así que se construye e inyecta más abajo (inject_theme_css),
 # una vez que sabemos qué preset está activo en session_state.
 
-PROVIDERS = ["ollama", "gemini", "openai", "claude"]
+PROVIDERS = ["ollama", "gemini", "openai", "claude", "groq"]
 # "custom" se quitó de la lista: ProviderFactory nunca implementó ese caso,
 # así que elegirlo en el desplegable rompía la app con un ValueError en
 # cuanto se intentaba construir el manager (ver ProviderFactory.get_provider).
@@ -92,11 +104,13 @@ _ENV_KEY_BY_PROVIDER = {
     "gemini": "GEMINI_API_KEY",
     "openai": "OPENAI_API_KEY",
     "claude": "CLAUDE_API_KEY",
+    "groq": "GROQ_API_KEY",
 }
 _ENV_BASE_URL_BY_PROVIDER = {
     "ollama": "OLLAMA_BASE_URL",
     "openai": "OPENAI_BASE_URL",
     "claude": "CLAUDE_BASE_URL",
+    "groq": "GROQ_BASE_URL",
 }
 
 
@@ -258,6 +272,9 @@ def _provider_cache_key() -> tuple:
         getattr(LLM_CONFIG, "claude_api_key", None),
         getattr(LLM_CONFIG, "claude_model", None),
         getattr(LLM_CONFIG, "claude_base_url", None),
+        getattr(LLM_CONFIG, "groq_api_key", None),
+        getattr(LLM_CONFIG, "groq_model", None),
+        getattr(LLM_CONFIG, "groq_base_url", None),
         getattr(LLM_CONFIG, "ollama_base_url", None),
         LLM_CONFIG.temperature,
         LLM_CONFIG.max_tokens,
@@ -283,7 +300,7 @@ def get_manager() -> Optional[ConversationManager]:
             st.session_state.manager = ConversationManager(provider)
             st.session_state._manager_key = key
         except Exception as e:
-            st.error(f"Error de configuración del proveedor LLM: {e}")
+            st.error(t("provider_config_error", _current_language(), error=e))
             return None
     return st.session_state.manager
 
@@ -324,6 +341,11 @@ def _apply_provider_credentials(provider: str, api_key: str, base_url: str) -> N
             LLM_CONFIG.claude_api_key = api_key
         if base_url:
             LLM_CONFIG.claude_base_url = base_url
+    elif provider == "groq":
+        if api_key:
+            LLM_CONFIG.groq_api_key = api_key
+        if base_url:
+            LLM_CONFIG.groq_base_url = base_url
     elif provider == "ollama":
         if base_url:
             LLM_CONFIG.ollama_base_url = base_url
@@ -398,28 +420,29 @@ def append_state_to_full_csv(state_dump: Dict[str, Any]) -> Path:
 
 def render_export_section(state_dump: Dict[str, Any]) -> None:
     """Renders CSV download + 'save to dataset' controls for the collected data."""
+    lang = _current_language()
     st.divider()
-    st.subheader("📥 Exportar datos")
+    st.subheader(t("export_subheader", lang))
 
     if not state_dump or not any(v.get("value") is not None for v in state_dump.values()):
-        st.caption("Aún no hay datos recabados para exportar.")
+        st.caption(t("export_no_data_caption", lang))
         return
 
     csv_bytes = build_state_csv(state_dump)
     st.download_button(
-        "⬇️ Descargar CSV de esta ficha",
+        t("export_download_button", lang),
         data=csv_bytes,
         file_name=f"paciente_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
         mime="text/csv",
-        use_container_width=True,
+        width="stretch",
     )
 
-    if st.button("💾 Añadir al historial acumulado (CSV)", use_container_width=True):
+    if st.button(t("export_add_history_button", lang), width="stretch"):
         try:
             path = append_state_to_full_csv(state_dump)
-            st.success(f"Ficha añadida a {path}")
+            st.success(t("export_add_history_success", lang, path=path))
         except Exception as e:
-            st.error(f"No se pudo guardar en el historial acumulado: {e}")
+            st.error(t("export_add_history_error", lang, error=e))
 
 
 # --------------------------------------------------------------------------- #
@@ -431,11 +454,12 @@ MAX_UPLOAD_BYTES = 15 * 1024 * 1024  # 15 MB
 
 def extract_text_from_upload(uploaded_file) -> str:
     """Extract raw text from an uploaded .txt, .pdf or .docx clinical record."""
+    lang = _current_language()
     name = uploaded_file.name.lower()
     data = uploaded_file.getvalue()
 
     if len(data) > MAX_UPLOAD_BYTES:
-        st.error(f"El archivo supera el tamaño máximo permitido ({MAX_UPLOAD_BYTES // (1024 * 1024)} MB).")
+        st.error(t("upload_too_large_error", lang, max_mb=MAX_UPLOAD_BYTES // (1024 * 1024)))
         return ""
 
     if name.endswith(".txt"):
@@ -445,29 +469,29 @@ def extract_text_from_upload(uploaded_file) -> str:
         try:
             import pypdf
         except ImportError:
-            st.error("Para leer PDFs instala 'pypdf' (pip install pypdf).")
+            st.error(t("pdf_missing_lib_error", lang))
             return ""
         try:
             reader = pypdf.PdfReader(io.BytesIO(data))
             return "\n".join(page.extract_text() or "" for page in reader.pages)
         except Exception as e:
-            st.error(f"No se pudo leer el PDF: {e}")
+            st.error(t("pdf_read_error", lang, error=e))
             return ""
 
     if name.endswith(".docx"):
         try:
             import docx
         except ImportError:
-            st.error("Para leer .docx instala 'python-docx' (pip install python-docx).")
+            st.error(t("docx_missing_lib_error", lang))
             return ""
         try:
             document = docx.Document(io.BytesIO(data))
             return "\n".join(p.text for p in document.paragraphs)
         except Exception as e:
-            st.error(f"No se pudo leer el .docx: {e}")
+            st.error(t("docx_read_error", lang, error=e))
             return ""
 
-    st.error("Formato no soportado. Usa .txt, .pdf o .docx.")
+    st.error(t("unsupported_format_error", lang))
     return ""
 
 
@@ -476,22 +500,23 @@ def render_clinical_history_section() -> None:
     (via ConversationManager.process_clinical_history) extract structured
     fields from it, the same way it would from a chat message.
     """
-    st.subheader("📁 Ficha de Historial Clínico")
-    st.caption("Sube o pega el historial clínico del paciente para que el asistente extraiga los datos automáticamente.")
+    lang = _current_language()
+    st.subheader(t("clinical_history_subheader", lang))
+    st.caption(t("clinical_history_caption", lang))
 
     uploaded = st.file_uploader(
-        "Subir ficha (.txt, .pdf, .docx)", type=["txt", "pdf", "docx"], key="clinical_history_upload"
+        t("clinical_history_upload_label", lang), type=["txt", "pdf", "docx"], key="clinical_history_upload"
     )
-    pasted_text = st.text_area("...o pega el texto del historial aquí", height=120, key="clinical_history_text")
+    pasted_text = st.text_area(t("clinical_history_paste_label", lang), height=120, key="clinical_history_text")
 
-    if st.button("🧠 Procesar historial con el LLM", use_container_width=True):
+    if st.button(t("clinical_history_process_button", lang), width="stretch"):
         text = ""
         if uploaded is not None:
             text = extract_text_from_upload(uploaded)
         elif pasted_text.strip():
             text = pasted_text.strip()
         else:
-            st.warning("Sube un archivo o pega el texto del historial primero.")
+            st.warning(t("clinical_history_warning_empty", lang))
             return
 
         if not text.strip():
@@ -502,40 +527,36 @@ def render_clinical_history_section() -> None:
             return
 
         if not hasattr(manager, "process_clinical_history"):
-            st.error(
-                "ConversationManager no implementa todavía 'process_clinical_history(texto)'. "
-                "Añade ese método (debe leer el texto del historial, extraer los campos clínicos "
-                "relevantes con el LLM, actualizar `manager.state` igual que process_user_input, "
-                "y devolver un resumen en texto de lo extraído) para habilitar esta función."
-            )
+            st.error(t("clinical_history_not_implemented_error", lang))
             return
 
-        with st.spinner("El LLM está leyendo el historial clínico..."):
+        with st.spinner(t("clinical_history_spinner", lang)):
             try:
-                summary = manager.process_clinical_history(text)
+                summary = manager.process_clinical_history(text, lang)
             except Exception as e:
-                st.error(f"Error procesando el historial clínico: {e}")
+                st.error(t("clinical_history_error", lang, error=e))
                 return
 
         summary_text = _format_clinical_summary(summary)
         is_error = isinstance(summary, dict) and "error" in summary and "assistant_response" not in summary
 
-        st.session_state.clinical_history_path = uploaded.name if uploaded is not None else "texto pegado"
+        st.session_state.clinical_history_path = (
+            uploaded.name if uploaded is not None else t("clinical_history_path_pasted", lang)
+        )
 
         if is_error:
             st.session_state.messages_ui.append({"role": "assistant", "content": summary_text})
-            st.error("No se pudo procesar el historial clínico. Revisa los logs para más detalle.")
+            st.error(t("clinical_history_process_error_generic", lang))
         else:
             st.session_state.messages_ui.append(
                 {
                     "role": "assistant",
                     "content": (
-                        "He leído la ficha de historial clínico y actualizado los datos del paciente.\n\n"
-                        + summary_text
+                        t("clinical_history_processed_prefix", lang) + summary_text
                     ).strip(),
                 }
             )
-            st.success("Historial clínico procesado y datos actualizados.")
+            st.success(t("clinical_history_success", lang))
         st.rerun()
 
 
@@ -603,13 +624,15 @@ def _format_clinical_summary(summary: Any) -> str:
 
 def initialize_session() -> None:
     """Initialize session_state defaults. Called once at the top of main()."""
+    if "language" not in st.session_state:
+        st.session_state.language = DEFAULT_LANGUAGE
     if "theme_palette" not in st.session_state:
         st.session_state.theme_palette = DEFAULT_PALETTE
     if "messages_ui" not in st.session_state:
         st.session_state.messages_ui = [
             {
                 "role": "assistant",
-                "content": "Hola. Soy el asistente virtual del hospital. ¿En qué te puedo ayudar hoy?",
+                "content": t("initial_greeting", _current_language()),
             }
         ]
     if "clinical_history_path" not in st.session_state:
@@ -635,21 +658,34 @@ def reset_conversation() -> None:
 # --------------------------------------------------------------------------- #
 
 def render_sidebar() -> None:
-    """Renderiza el panel lateral: proveedor LLM, credenciales y ayuda."""
+    """Renderiza el panel lateral: idioma, proveedor LLM, credenciales y ayuda."""
+    lang = _current_language()
     with st.sidebar:
+        st.segmented_control(
+            t("sidebar_language_label", lang),
+            options=list(LANGUAGES.keys()),
+            format_func=lambda k: LANGUAGES[k],
+            key="language",
+            help=t("sidebar_language_help", lang),
+        )
+        # El idioma pudo cambiar en este mismo rerun: relee tras el widget
+        # para que el resto de la sidebar (y el resto de main()) ya use el
+        # idioma recién elegido en vez del anterior.
+        lang = _current_language()
+
         st.selectbox(
-            "🎨 Paleta de color",
+            t("sidebar_palette_label", lang),
             options=list(PALETTES.keys()),
             format_func=lambda k: PALETTES[k]["name"],
             key="theme_palette",
-            help="Cambia el aspecto visual de la app al instante (no afecta a los datos del paciente).",
+            help=t("sidebar_palette_help", lang),
         )
         st.divider()
 
-        st.header("⚙️ Configuración del Sistema")
+        st.header(t("sidebar_config_header", lang))
 
         provider = st.selectbox(
-            "Proveedor",
+            t("provider_label", lang),
             PROVIDERS,
             index=PROVIDERS.index(LLM_CONFIG.default_provider) if LLM_CONFIG.default_provider in PROVIDERS else 0,
             key="provider_select",
@@ -662,22 +698,29 @@ def render_sidebar() -> None:
         api_key = ""
         base_url = ""
         if provider == "ollama":
-            base_url = st.text_input("Base URL de Ollama", value=LLM_CONFIG.ollama_base_url)
-            model_hint = st.text_input("Modelo (opcional)", value=LLM_CONFIG.default_model)
+            base_url = st.text_input(t("ollama_base_url_label", lang), value=LLM_CONFIG.ollama_base_url)
+            model_hint = st.text_input(t("model_optional_label", lang), value=LLM_CONFIG.default_model)
         elif provider == "gemini":
-            api_key = st.text_input("Gemini API Key", value=LLM_CONFIG.gemini_api_key, type="password")
+            api_key = st.text_input(t("gemini_api_key_label", lang), value=LLM_CONFIG.gemini_api_key, type="password")
             base_url = st.text_input(
-                "Gemini Base URL (opcional)", value=getattr(LLM_CONFIG, "gemini_base_url", "") or ""
+                t("gemini_base_url_label", lang), value=getattr(LLM_CONFIG, "gemini_base_url", "") or ""
             )
-            model_hint = st.text_input("Modelo", value=LLM_CONFIG.gemini_model)
+            model_hint = st.text_input(t("model_label", lang), value=LLM_CONFIG.gemini_model)
         elif provider == "openai":
-            api_key = st.text_input("OpenAI API Key", value=LLM_CONFIG.openai_api_key, type="password")
-            base_url = st.text_input("OpenAI Base URL (opcional)", value=LLM_CONFIG.openai_base_url or "")
-            model_hint = st.text_input("Modelo", value=LLM_CONFIG.openai_model)
-        else:  # claude
-            api_key = st.text_input("Claude API Key", value=LLM_CONFIG.claude_api_key, type="password")
-            base_url = st.text_input("Claude Base URL (opcional)", value=LLM_CONFIG.claude_base_url or "")
-            model_hint = st.text_input("Modelo", value=LLM_CONFIG.claude_model)
+            api_key = st.text_input(t("openai_api_key_label", lang), value=LLM_CONFIG.openai_api_key, type="password")
+            base_url = st.text_input(t("openai_base_url_label", lang), value=LLM_CONFIG.openai_base_url or "")
+            model_hint = st.text_input(t("model_label", lang), value=LLM_CONFIG.openai_model)
+        elif provider == "claude":
+            api_key = st.text_input(t("claude_api_key_label", lang), value=LLM_CONFIG.claude_api_key, type="password")
+            base_url = st.text_input(t("claude_base_url_label", lang), value=LLM_CONFIG.claude_base_url or "")
+            model_hint = st.text_input(t("model_label", lang), value=LLM_CONFIG.claude_model)
+        else:  # groq
+            api_key = st.text_input(
+                t("groq_api_key_label", lang), value=LLM_CONFIG.groq_api_key, type="password",
+                help=t("groq_api_key_help", lang),
+            )
+            base_url = st.text_input(t("groq_base_url_label", lang), value=LLM_CONFIG.groq_base_url or "")
+            model_hint = st.text_input(t("model_label", lang), value=LLM_CONFIG.groq_model)
 
         # NOTA: LLM_CONFIG es un singleton a nivel de módulo, compartido por
         # todas las sesiones de Streamlit del mismo proceso. Estos widgets
@@ -686,60 +729,52 @@ def render_sidebar() -> None:
         # un despliegue multiusuario real habría que mover esta config a
         # st.session_state y pasarla explícitamente a ProviderFactory.
         LLM_CONFIG.temperature = st.slider(
-            "Temperatura (Creatividad vs Precisión)",
+            t("temperature_label", lang),
             min_value=0.0, max_value=1.0, value=LLM_CONFIG.temperature, step=0.1,
-            help="Mantenlo en 0.0 para maximizar la consistencia del JSON.",
+            help=t("temperature_help", lang),
         )
         LLM_CONFIG.max_tokens = st.number_input(
-            "Max Tokens", min_value=64, max_value=4096, value=LLM_CONFIG.max_tokens, step=64
+            t("max_tokens_label", lang), min_value=64, max_value=4096, value=LLM_CONFIG.max_tokens, step=64
         )
 
-        discover = st.button("🔎 Buscar modelos disponibles")
+        discover = st.button(t("discover_button", lang))
         if discover:
             try:
-                with st.spinner("Buscando modelos..."):
+                with st.spinner(t("discover_spinner", lang)):
                     models = discover_models_cached(provider, api_key, base_url)
                 st.session_state.discovered_models = models
                 if not models and model_hint:
-                    st.warning("No se pudieron listar modelos automáticamente; se usará el nombre indicado.")
+                    st.warning(t("discover_warning", lang))
             except Exception as e:
-                st.error(f"Error inicializando proveedor: {e}")
+                st.error(t("discover_error", lang, error=e))
 
         # Persisted across reruns, unlike the original which vanished
         # as soon as `discover` went back to False on the next script run.
         if st.session_state.discovered_models:
-            chosen = st.selectbox("Modelos detectados", st.session_state.discovered_models, key="chosen_model")
-            if st.button("Usar este modelo"):
-                _apply_llm_settings(provider, api_key, base_url, chosen)
+            chosen = st.selectbox(t("models_detected_label", lang), st.session_state.discovered_models, key="chosen_model")
+            if st.button(t("use_model_button", lang)):
+                _apply_llm_settings(provider, api_key, base_url, chosen, lang)
         elif model_hint:
-            if st.button("Aplicar configuración"):
-                _apply_llm_settings(provider, api_key, base_url, model_hint)
+            if st.button(t("apply_config_button", lang)):
+                _apply_llm_settings(provider, api_key, base_url, model_hint, lang)
 
-        with st.expander("💾 Guardar credenciales"):
-            _render_credential_persistence(provider, api_key, base_url)
+        with st.expander(t("save_credentials_expander", lang)):
+            _render_credential_persistence(provider, api_key, base_url, lang)
 
         st.divider()
-        with st.expander("📁 Ficha de Historial Clínico", expanded=False):
+        with st.expander(t("clinical_history_expander", lang), expanded=False):
             render_clinical_history_section()
 
         st.divider()
-        with st.expander("Ayuda rápida"):
-            st.markdown(
-                "**Sugerencias de prompts:**\n"
-                "- 'Hola, necesito ayuda para una cita'\n"
-                "- 'Tengo dolor de cabeza y fiebre desde ayer'\n"
-                "- '¿Qué documentos necesito llevar?'\n\n"
-                "**Consejos:**\n"
-                "- Pega tu API key si usas Gemini / OpenAI / Claude.\n"
-                "- Usa 'Buscar modelos' para detectar modelos disponibles."
-            )
+        with st.expander(t("help_expander", lang)):
+            st.markdown(t("help_content", lang))
 
         st.divider()
-        if st.button("🔄 Nueva Conversación", use_container_width=True):
+        if st.button(t("new_conversation_button", lang), width="stretch"):
             reset_conversation()
 
 
-def _apply_llm_settings(provider: str, api_key: str, base_url: str, model: str) -> None:
+def _apply_llm_settings(provider: str, api_key: str, base_url: str, model: str, lang: str = DEFAULT_LANGUAGE) -> None:
     """Apply chosen provider/model settings and invalidate the cached manager."""
     LLM_CONFIG.default_provider = provider
     LLM_CONFIG.default_model = model
@@ -750,13 +785,15 @@ def _apply_llm_settings(provider: str, api_key: str, base_url: str, model: str) 
         LLM_CONFIG.openai_model = model
     elif provider == "claude":
         LLM_CONFIG.claude_model = model
-    st.success(f"Modelo aplicado: {model}")
+    elif provider == "groq":
+        LLM_CONFIG.groq_model = model
+    st.success(t("model_applied_success", lang, model=model))
     st.rerun()
 
 
-def _render_credential_persistence(provider: str, api_key: str, base_url: str) -> None:
+def _render_credential_persistence(provider: str, api_key: str, base_url: str, lang: str = DEFAULT_LANGUAGE) -> None:
     """Plaintext .env save, plus optional encrypted save/load if `cryptography` is installed."""
-    if st.button("Guardar en chatbot/.env"):
+    if st.button(t("save_env_button", lang)):
         try:
             env_path = Path(__file__).resolve().parent / ".env"
             lines = [f"DEFAULT_PROVIDER={provider}"]
@@ -773,9 +810,9 @@ def _render_credential_persistence(provider: str, api_key: str, base_url: str) -
                 os.chmod(env_path, 0o600)
             except Exception:
                 pass
-            st.success(f"Credenciales guardadas en {env_path}")
+            st.success(t("save_env_success", lang, path=env_path))
         except Exception as e:
-            st.error(f"No se pudo guardar .env: {e}")
+            st.error(t("save_env_error", lang, error=e))
 
     try:
         from chatbot.utils.crypto import HAS_CRYPTO, encrypt_dict, decrypt_file
@@ -783,14 +820,14 @@ def _render_credential_persistence(provider: str, api_key: str, base_url: str) -
         HAS_CRYPTO = False
 
     if not HAS_CRYPTO:
-        st.caption("Instala 'cryptography' (pip install cryptography) para guardar credenciales encriptadas.")
+        st.caption(t("crypto_missing_caption", lang))
         return
 
-    passphrase = st.text_input("Passphrase para encriptar", type="password", key="enc_pass")
-    passphrase2 = st.text_input("Confirmar passphrase", type="password", key="enc_pass2")
-    if st.button("Encriptar y guardar .env.enc"):
+    passphrase = st.text_input(t("passphrase_label", lang), type="password", key="enc_pass")
+    passphrase2 = st.text_input(t("passphrase_confirm_label", lang), type="password", key="enc_pass2")
+    if st.button(t("encrypt_save_button", lang)):
         if not passphrase or passphrase != passphrase2:
-            st.error("Las passphrases no coinciden o están vacías.")
+            st.error(t("passphrase_mismatch_error", lang))
         else:
             data = {"DEFAULT_PROVIDER": provider}
             env_key = _ENV_KEY_BY_PROVIDER.get(provider)
@@ -809,14 +846,14 @@ def _render_credential_persistence(provider: str, api_key: str, base_url: str) -
                     os.chmod(env_enc_path, 0o600)
                 except Exception:
                     pass
-                st.success(f"Credenciales encriptadas guardadas en {env_enc_path}")
+                st.success(t("encrypt_success", lang, path=env_enc_path))
             except Exception as e:
-                st.error(f"Fallo al encriptar: {e}")
+                st.error(t("encrypt_error", lang, error=e))
 
     enc_path = Path(__file__).resolve().parent / ".env.enc"
     if enc_path.exists():
-        dec_pass = st.text_input("Passphrase para desencriptar", type="password", key="dec_pass")
-        if st.button("Cargar .env.enc"):
+        dec_pass = st.text_input(t("decrypt_passphrase_label", lang), type="password", key="dec_pass")
+        if st.button(t("load_env_enc_button", lang)):
             try:
                 data = decrypt_file(dec_pass, str(enc_path))
                 if "DEFAULT_PROVIDER" in data:
@@ -835,33 +872,33 @@ def _render_credential_persistence(provider: str, api_key: str, base_url: str) -
                     LLM_CONFIG.claude_base_url = data["CLAUDE_BASE_URL"]
                 if "DEFAULT_MODEL" in data:
                     LLM_CONFIG.default_model = data["DEFAULT_MODEL"]
-                st.success("Credenciales cargadas en la configuración de sesión")
+                st.success(t("load_env_enc_success", lang))
                 st.rerun()
             except Exception as e:
-                st.error(f"Fallo al desencriptar: {e}")
+                st.error(t("decrypt_error", lang, error=e))
 
 
 # --------------------------------------------------------------------------- #
 # Patient status panel
 # --------------------------------------------------------------------------- #
 
-# Icono + etiqueta legible para cada campo de PatientState. Un campo que no
-# esté aquí (por ejemplo si se amplía PatientState más adelante) sigue
-# funcionando: cae en el fallback de _field_meta().
-FIELD_META: Dict[str, Dict[str, str]] = {
-    "age": {"icon": "🎂", "label": "Edad"},
-    "gender_m": {"icon": "🚻", "label": "Sexo"},
-    "hypertension": {"icon": "❤️", "label": "Hipertensión"},
-    "diabetes": {"icon": "🩸", "label": "Diabetes"},
-    "alcoholism": {"icon": "🍷", "label": "Alcoholismo"},
-    "handicap": {"icon": "♿", "label": "Discapacidad"},
-    "scholarship": {"icon": "🎓", "label": "Beca social"},
-    "sms_received": {"icon": "📩", "label": "SMS recibido"},
-    "history_no_show": {"icon": "📊", "label": "Historial de faltas"},
-    "days_between": {"icon": "📅", "label": "Días de antelación"},
-    "weekend": {"icon": "🗓️", "label": "Cita en fin de semana"},
-    "time_of_day": {"icon": "⏰", "label": "Horario de la cita"},
-    "consultation_reason": {"icon": "📝", "label": "Motivo de consulta"},
+# Icono para cada campo de PatientState; la etiqueta se traduce vía i18n
+# (claves "field_<key>" en chatbot/i18n.py). Un campo que no tenga icono
+# aquí, o traducción, sigue funcionando: cae en el fallback de _field_meta().
+FIELD_ICONS: Dict[str, str] = {
+    "age": "🎂",
+    "gender_m": "🚻",
+    "hypertension": "❤️",
+    "diabetes": "🩸",
+    "alcoholism": "🍷",
+    "handicap": "♿",
+    "scholarship": "🎓",
+    "sms_received": "📩",
+    "history_no_show": "📊",
+    "days_between": "📅",
+    "weekend": "🗓️",
+    "time_of_day": "⏰",
+    "consultation_reason": "📝",
 }
 
 _BOOLEAN_FIELDS = {
@@ -869,25 +906,30 @@ _BOOLEAN_FIELDS = {
 }
 
 
-def _field_meta(key: str) -> Dict[str, str]:
-    return FIELD_META.get(key, {"icon": "•", "label": key.replace("_", " ").capitalize()})
+def _field_meta(key: str, lang: str) -> Dict[str, str]:
+    icon = FIELD_ICONS.get(key, "•")
+    label_key = f"field_{key}"
+    label = t(label_key, lang)
+    if label == label_key:  # sin traducción para este campo
+        label = key.replace("_", " ").capitalize()
+    return {"icon": icon, "label": label}
 
 
-def _humanize_value(key: str, value: Any) -> str:
+def _humanize_value(key: str, value: Any, lang: str) -> str:
     """Convierte el valor crudo del estado en texto legible para humanos."""
     if key == "gender_m":
-        return "Masculino" if value in (1, "1", 1.0, True) else "Femenino"
+        return t("value_male", lang) if value in (1, "1", 1.0, True) else t("value_female", lang)
     if key == "age":
-        return f"{value} años"
+        return t("value_age_suffix", lang, value=value)
     if key == "days_between":
-        return f"{value} días"
+        return t("value_days_suffix", lang, value=value)
     if key == "history_no_show":
         try:
             return f"{float(value):.0%}"
         except (TypeError, ValueError):
             return str(value)
     if key in _BOOLEAN_FIELDS:
-        return "Sí" if value in (1, "1", 1.0, True) else "No"
+        return t("value_yes", lang) if value in (1, "1", 1.0, True) else t("value_no", lang)
     return str(value)
 
 
@@ -900,10 +942,11 @@ def _confidence_class(conf: float) -> str:
 
 
 def render_patient_status(state_dump: Dict[str, Any], missing_fields: list) -> None:
-    st.subheader("📋 Estado del Paciente")
+    lang = _current_language()
+    st.subheader(t("patient_status_subheader", lang))
 
     if not state_dump:
-        st.info("Aún no se ha recopilado información.")
+        st.info(t("patient_status_empty_info", lang))
         return
 
     total_fields = len(state_dump)
@@ -917,8 +960,8 @@ def render_patient_status(state_dump: Dict[str, Any], missing_fields: list) -> N
         f"""
         <div class="progress-wrap">
           <div class="progress-label">
-            <span>Progreso de la ficha</span>
-            <span>{completed}/{total_fields} campos · {pct:.0%}</span>
+            <span>{t("progress_label", lang)}</span>
+            <span>{t("progress_fields_count", lang, completed=completed, total=total_fields, pct=f"{pct:.0%}")}</span>
           </div>
           <div class="progress-track"><div class="progress-fill" style="width:{pct * 100:.0f}%"></div></div>
         </div>
@@ -931,7 +974,7 @@ def render_patient_status(state_dump: Dict[str, Any], missing_fields: list) -> N
         for key, data in extracted_data.items():
             value = data["value"]
             conf = data.get("confidence") or 0.0
-            meta = _field_meta(key)
+            meta = _field_meta(key, lang)
             conf_class = _confidence_class(conf)
             # html.escape es imprescindible aquí: "value" puede venir de texto
             # que el paciente escribió en el chat y que el LLM copió tal cual
@@ -939,7 +982,8 @@ def render_patient_status(state_dump: Dict[str, Any], missing_fields: list) -> N
             # renderiza con unsafe_allow_html=True, sin escapar sería una
             # inyección de HTML/JS trivial (XSS) a través del propio chat.
             safe_label = html.escape(meta["label"])
-            safe_value = html.escape(_humanize_value(key, value))
+            safe_value = html.escape(_humanize_value(key, value, lang))
+            conf_label = html.escape(t("confidence_label", lang, pct=f"{conf:.0%}"))
             cards.append(
                 f"""
                 <div class="patient-card">
@@ -950,25 +994,25 @@ def render_patient_status(state_dump: Dict[str, Any], missing_fields: list) -> N
                     <div class="pc-conf-track">
                       <div class="pc-conf-fill {conf_class}" style="width:{conf * 100:.0f}%"></div>
                     </div>
-                    <span class="pc-conf-pct">Confianza: {conf:.0%}</span>
+                    <span class="pc-conf-pct">{conf_label}</span>
                   </div>
                 </div>
                 """
             )
         st.markdown("".join(cards), unsafe_allow_html=True)
     else:
-        st.caption("Todavía no hay campos confirmados con datos.")
+        st.caption(t("no_confirmed_fields_caption", lang))
 
     st.divider()
-    st.subheader("🎯 Variables Pendientes")
+    st.subheader(t("pending_variables_subheader", lang))
     if missing_fields:
         chips = []
         for field in missing_fields:
-            meta = _field_meta(field)
+            meta = _field_meta(field, lang)
             chips.append(f'<span class="pending-chip">{meta["icon"]} {html.escape(meta["label"])}</span>')
         st.markdown(f'<div class="pending-wrap">{"".join(chips)}</div>', unsafe_allow_html=True)
     else:
-        st.success("¡Información completada!")
+        st.success(t("pending_variables_done_success", lang))
 
 
 # --------------------------------------------------------------------------- #
@@ -983,16 +1027,18 @@ def render_chatbot_tab() -> None:
     inject_css()
     initialize_session()
     inject_theme_css(st.session_state.theme_palette)
+    lang = _current_language()
 
-    st.title("🏥 Asistente de Admisión Hospitalaria — Chatbot")
-    st.caption("Interfaz para conversar con el asistente y ver el estado del paciente en tiempo real.")
+    st.title(t("app_title", lang))
+    st.caption(t("app_caption", lang))
 
     render_sidebar()
+    lang = _current_language()  # el usuario pudo cambiarlo dentro de la sidebar
 
     col1, col2 = st.columns([3, 1])
 
     with col1:
-        st.subheader("Chat")
+        st.subheader(t("chat_subheader", lang))
 
         # st.chat_message renders natively and incrementally — Streamlit only
         # diffs what changed, unlike the previous approach of rebuilding one
@@ -1005,32 +1051,30 @@ def render_chatbot_tab() -> None:
                 with st.chat_message(msg["role"], avatar=avatar):
                     st.write(msg["content"])
 
-        user_text = st.chat_input("Escribe tu mensaje aquí...")
+        user_text = st.chat_input(t("chat_input_placeholder", lang))
 
         if user_text and user_text.strip():
             user_text = user_text.strip()
             if len(user_text) > MAX_USER_MESSAGE_CHARS:
-                st.warning(
-                    f"Tu mensaje superaba los {MAX_USER_MESSAGE_CHARS} caracteres; se ha truncado."
-                )
+                st.warning(t("chat_truncate_warning", lang, max=MAX_USER_MESSAGE_CHARS))
                 user_text = user_text[:MAX_USER_MESSAGE_CHARS]
             st.session_state.messages_ui.append({"role": "user", "content": user_text})
             manager = get_manager()
 
             if manager is not None:
                 try:
-                    with st.spinner("El asistente está escribiendo..."):
-                        reply, ready = manager.process_user_input(user_text)
+                    with st.spinner(t("chat_thinking_spinner", lang)):
+                        reply, ready = manager.process_user_input(user_text, lang)
                     st.session_state.messages_ui.append({"role": "assistant", "content": reply})
                 except Exception as e:
                     st.session_state.messages_ui.append(
-                        {"role": "assistant", "content": f"⚠️ Ocurrió un error: {e}"}
+                        {"role": "assistant", "content": t("chat_error_message", lang, error=e)}
                     )
                     st.session_state.last_error = str(e)
             st.rerun()
 
     with col2:
-        st.subheader("Estado paciente & Predicción")
+        st.subheader(t("patient_prediction_subheader", lang))
         mgr = get_manager()
         if mgr is not None:
             try:
@@ -1046,15 +1090,16 @@ def render_chatbot_tab() -> None:
                         color_class = "risk-high"
                     elif pred.risk_level == "MEDIO":
                         color_class = "risk-medium"
+                    risk_label = t(f"risk_{pred.risk_level}", lang)
                     st.markdown(
                         f"<div class='risk-badge {color_class}'>"
-                        f"Probabilidad de ausencia: {pred.probability:.2%} — {pred.risk_level}</div>",
+                        f"{t('risk_badge_text', lang, probability=f'{pred.probability:.2%}', risk_level=risk_label)}</div>",
                         unsafe_allow_html=True,
                     )
                     if pred.is_fallback:
-                        st.caption("(Fallback usado — modelo ausente)")
+                        st.caption(t("risk_fallback_caption", lang))
             except Exception as e:
-                st.error(f"Error mostrando estado/predicción: {e}")
+                st.error(t("patient_prediction_error", lang, error=e))
 
 
 def main() -> None:
