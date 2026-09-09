@@ -41,7 +41,11 @@ class ModelConfig:
     claude_model: str = os.getenv("CLAUDE_MODEL", "claude-2.1")
     claude_base_url: str = os.getenv("CLAUDE_BASE_URL", "https://api.anthropic.com")
     groq_model: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
-    groq_base_url: str = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
+    # El SDK oficial `groq` ya antepone "/openai/v1" a cada endpoint
+    # internamente (p.ej. resuelve a "<base_url>/openai/v1/chat/completions"),
+    # así que el base_url debe ser solo el host: incluir aquí "/openai/v1"
+    # duplica el segmento y produce un 404 "Unknown request URL".
+    groq_base_url: str = os.getenv("GROQ_BASE_URL", "https://api.groq.com")
     temperature: float = 0.0
     max_tokens: int = 1500
     request_timeout: int = int(os.getenv("LLM_TIMEOUT", "120"))

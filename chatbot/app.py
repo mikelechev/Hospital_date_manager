@@ -42,6 +42,24 @@ def _current_language() -> str:
     return st.session_state.get("language", DEFAULT_LANGUAGE)
 
 
+def _sync_greeting_language(lang: str) -> None:
+    """Re-traduce el saludo inicial si el usuario cambia de idioma antes de
+    escribir nada.
+
+    Una vez la conversación ha avanzado (hay más de un mensaje, o el único
+    mensaje ya no es el saludo por defecto) se deja el historial tal cual:
+    solo el saludo automático de bienvenida se mantiene sincronizado con el
+    selector de idioma.
+    """
+    messages = st.session_state.get("messages_ui")
+    if not messages or len(messages) != 1:
+        return
+    if st.session_state.get("_greeting_language") == lang:
+        return
+    messages[0]["content"] = t("initial_greeting", lang)
+    st.session_state._greeting_language = lang
+
+
 # --------------------------------------------------------------------------- #
 # Page config + CSS
 #
@@ -537,7 +555,7 @@ def render_clinical_history_section() -> None:
                 st.error(t("clinical_history_error", lang, error=e))
                 return
 
-        summary_text = _format_clinical_summary(summary)
+        summary_text = _format_clinical_summary(summary, lang)
         is_error = isinstance(summary, dict) and "error" in summary and "assistant_response" not in summary
 
         st.session_state.clinical_history_path = (
@@ -560,7 +578,7 @@ def render_clinical_history_section() -> None:
         st.rerun()
 
 
-def _format_clinical_summary(summary: Any) -> str:
+def _format_clinical_summary(summary: Any, lang: str = DEFAULT_LANGUAGE) -> str:
     """Normalize whatever process_clinical_history returns into display text.
 
     Handles the shape returned by ConversationManager.process_clinical_history
@@ -577,7 +595,7 @@ def _format_clinical_summary(summary: Any) -> str:
     if isinstance(summary, dict):
         # Error shape from process_clinical_history's except-branch.
         if "error" in summary and "assistant_response" not in summary:
-            return f"⚠️ Error del LLM al interpretar el historial: {summary['error']}"
+            return t("clinical_history_llm_error", lang, error=summary["error"])
 
         # Expected shape: {"assistant_response": ..., "analysis": {...}, ...}
         if "assistant_response" in summary:
@@ -591,12 +609,12 @@ def _format_clinical_summary(summary: Any) -> str:
                 if value is None:
                     continue
                 conf = confidences.get(key)
-                conf_str = f" (confianza: {conf:.2f})" if isinstance(conf, (int, float)) else ""
+                conf_str = f" ({t('confidence_label', lang, pct=f'{conf:.2f}')})" if isinstance(conf, (int, float)) else ""
                 field_lines.append(f"- **{key}**: {value}{conf_str}")
 
             if field_lines:
                 lines.append("")
-                lines.append("Datos extraídos:")
+                lines.append(t("clinical_history_extracted_data_label", lang))
                 lines.extend(field_lines)
             return "\n".join(lines)
 
@@ -607,7 +625,7 @@ def _format_clinical_summary(summary: Any) -> str:
             if isinstance(val, dict):
                 value = val.get("value", val)
                 conf = val.get("confidence")
-                conf_str = f" (confianza: {conf:.2f})" if isinstance(conf, (int, float)) else ""
+                conf_str = f" ({t('confidence_label', lang, pct=f'{conf:.2f}')})" if isinstance(conf, (int, float)) else ""
                 lines.append(f"- **{key}**: {value}{conf_str}")
             else:
                 lines.append(f"- **{key}**: {val}")
@@ -635,6 +653,7 @@ def initialize_session() -> None:
                 "content": t("initial_greeting", _current_language()),
             }
         ]
+        st.session_state._greeting_language = _current_language()
     if "clinical_history_path" not in st.session_state:
         st.session_state.clinical_history_path = None
     if "discovered_models" not in st.session_state:
@@ -672,6 +691,7 @@ def render_sidebar() -> None:
         # para que el resto de la sidebar (y el resto de main()) ya use el
         # idioma recién elegido en vez del anterior.
         lang = _current_language()
+        _sync_greeting_language(lang)
 
         st.selectbox(
             t("sidebar_palette_label", lang),

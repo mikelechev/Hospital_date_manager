@@ -40,7 +40,10 @@ class GroqProvider(BaseProvider):
 
         self._sdk = groq
         self.model = getattr(LLM_CONFIG, "groq_model", None) or LLM_CONFIG.default_model
-        self.base_url = getattr(LLM_CONFIG, "groq_base_url", None) or "https://api.groq.com/openai/v1"
+        # OJO: solo el host. El SDK `groq` ya antepone "/openai/v1" a cada
+        # endpoint por su cuenta; incluirlo aquí también duplica el segmento
+        # y la API responde 404 "Unknown request URL: .../openai/v1/openai/v1/...".
+        self.base_url = getattr(LLM_CONFIG, "groq_base_url", None) or "https://api.groq.com"
         self.timeout = LLM_CONFIG.request_timeout
         # max_retries=0: los reintentos por rate limit los gestionamos
         # nosotros explícitamente en generate_response (requisito de negocio:
