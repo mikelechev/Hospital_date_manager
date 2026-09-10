@@ -696,7 +696,11 @@ def render_sidebar() -> None:
         st.selectbox(
             t("sidebar_palette_label", lang),
             options=list(PALETTES.keys()),
-            format_func=lambda k: PALETTES[k]["name"],
+            # Antes usaba PALETTES[k]["name"] (fijo en castellano): con el
+            # selector de idioma en euskera, los nombres de paleta seguían
+            # saliendo en castellano. La clave de traducción es
+            # "palette_<clave-de-la-paleta>" (definida en chatbot/i18n.py).
+            format_func=lambda k: t(f"palette_{k}", lang),
             key="theme_palette",
             help=t("sidebar_palette_help", lang),
         )

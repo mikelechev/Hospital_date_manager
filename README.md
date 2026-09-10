@@ -85,11 +85,11 @@ curl -X POST http://localhost:8000/api/evaluar-y-reservar \
 
 **Qué hace:** simulador Monte Carlo que compara tres estrategias de agendamiento a lo largo de varios días (tradicional fijo, tradicional flexible, IA con overbooking inteligente), con mapas de calor animados y gráficas de riesgo/ROI usando `data/dataset_limpio.csv`.
 
-Usa `models/modelo_definitivo.joblib`: un `VotingClassifier` (HistGradientBoosting + RandomForest) calibrado con scikit-learn, entrenado sobre `data/dataset_limpio.csv` con 19 variables (edad, comorbilidades, día/mes de cita y de programación, historial de faltas...).
+Usa `models/modelo_definitivo.joblib`: un `VotingClassifier` (`XGBClassifier` + `CatBoostClassifier` + `LogisticRegression`, calibrado con `CalibratedClassifierCV`), entrenado sobre `data/dataset_limpio.csv` con 19 variables (edad, comorbilidades, día/mes de cita y de programación, historial de faltas...).
 
 **⚠️ No está versionado en git** (`.gitignore` excluye `*.joblib` por ser un binario pesado). Si clonas el repo desde cero, tienes que generarlo o copiarlo a mano en `models/modelo_definitivo.joblib` antes de arrancar el dashboard o el chatbot; si falta, el dashboard no arranca y el chatbot cae automáticamente a su estimación heurística de respaldo.
 
-**⚠️ Requiere `scikit-learn==1.8.0` exacto.** El `.joblib` es un pickle: con una versión distinta de scikit-learn falla al cargar (`ModuleNotFoundError: No module named '_loss'`, un módulo interno que cambió de sitio entre 1.8 y 1.9). La versión ya viene fijada en `requirements.txt`; si reinstalas dependencias sueltas, respeta ese pin.
+**Sobre la versión de scikit-learn:** este modelo no usa `HistGradientBoostingClassifier` ni `GradientBoostingClassifier` (las clases internas de scikit-learn cuyo módulo `_loss` se reorganizó entre 1.8 y 1.9 y rompía la carga del pickle en versiones distintas), así que en principio no necesita un pin exacto a 1.8.0. Antes de confiar en esto del todo, comprueba en tu venv (que ya tiene 1.9.x): `python -c "import joblib; joblib.load('models/modelo_definitivo.joblib')"` — si carga sin error, este aviso puede borrarse del todo.
 
 **Cómo correrlo:**
 

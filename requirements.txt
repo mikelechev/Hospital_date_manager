@@ -4,11 +4,16 @@ streamlit
 pandas
 numpy
 xgboost
-# Fijado a 1.8.x: models/modelo_definitivo.joblib se entrenó/serializó con
-# scikit-learn 1.8.0. Con 1.9.x el pickle falla al cargar
-# (ModuleNotFoundError: No module named '_loss', un módulo interno movido
-# entre versiones) y el dashboard (scripts/app.py) no arranca.
-scikit-learn==1.8.0
+# Sin pin de versión exacta: models/modelo_definitivo.joblib es un
+# VotingClassifier (XGBClassifier + CatBoostClassifier + LogisticRegression,
+# con CalibratedClassifierCV) — no usa HistGradientBoostingClassifier ni
+# GradientBoostingClassifier, que son las clases internas de scikit-learn
+# que reorganizaron su módulo `_loss` entre 1.8 y 1.9 y rompían la carga del
+# pickle en versiones distintas. Este modelo no depende de ese módulo, así
+# que en principio no hace falta fijarlo a 1.8.0. Antes de confiar en esto
+# del todo, comprobar en el venv (que ya tiene 1.9.x): `python -c "import
+# joblib; joblib.load('models/modelo_definitivo.joblib')"`.
+scikit-learn
 joblib
 plotly
 scipy

@@ -60,9 +60,10 @@ class PredictionConfig:
 
     Usa el mismo artefacto que el dashboard de simulación
     (scripts/app.py): models/modelo_definitivo.joblib, un
-    VotingClassifier (HistGradientBoosting + RandomForest) calibrado con
-    scikit-learn — reemplaza al antiguo modelo_campeon.json (XGBoost),
-    que solo tenía 13 de las 19 variables que este modelo espera.
+    VotingClassifier (XGBClassifier + CatBoostClassifier +
+    LogisticRegression) calibrado con CalibratedClassifierCV —
+    reemplaza al antiguo modelo_campeon.json (XGBoost suelto), que solo
+    tenía 13 de las 19 variables que este modelo espera.
     """
     model_path: Path = BASE_DIR.parent / "models" / "modelo_definitivo.joblib"
     risk_threshold_high: float = 0.8

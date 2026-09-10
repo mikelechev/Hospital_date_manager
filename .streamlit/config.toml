@@ -1,0 +1,21 @@
+# Fuerza el tema visual a claro, independientemente del modo oscuro/claro
+# del sistema operativo o del navegador del usuario.
+#
+# Por qué hace falta: todo el CSS a medida de este proyecto (paletas de
+# color de chatbot/app.py, panel paciente/admin de scripts/patient.py)
+# fuerza fondos claros para sus propios elementos, pero deja el color de
+# TEXTO de los widgets nativos de Streamlit (títulos, sidebar, etiquetas,
+# radios/selects) en el valor por defecto de Streamlit. Sin este archivo,
+# Streamlit detecta automáticamente el tema del sistema/navegador: si el
+# usuario tiene el modo oscuro activado, el texto nativo se vuelve blanco
+# y queda invisible sobre los fondos claros a medida (justo el bug de
+# "textos en blanco que no se ven", sobre todo visible en la sidebar y en
+# el bloque central). Fijar aquí base="light" hace que el tema nativo sea
+# siempre claro (texto oscuro) y así todo el CSS a medida vuelve a
+# funcionar como estaba pensado.
+[theme]
+base = "light"
+primaryColor = "#1d6fd6"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f7fafd"
+textColor = "#1b2733"

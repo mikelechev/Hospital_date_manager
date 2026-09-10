@@ -53,7 +53,26 @@ def load_data():
 
 @st.cache_resource
 def load_model():
-    return joblib.load(MODELO_JOBLIB_PATH)
+    """Carga models/modelo_definitivo.joblib.
+
+    Antes un fallo aquí (archivo ausente, incompatibilidad de versión de
+    scikit-learn/xgboost/catboost al deserializar el pickle...) tumbaba
+    toda la app con un traceback en crudo — el peor momento posible para
+    que pase es a mitad de una demo en vivo delante de un jurado. Ahora se
+    captura el error y se muestra un aviso claro en la propia página,
+    antes de parar limpiamente con st.stop().
+    """
+    try:
+        return joblib.load(MODELO_JOBLIB_PATH)
+    except Exception as e:
+        st.error(
+            "❌ No se pudo cargar el modelo de IA "
+            f"(`{MODELO_JOBLIB_PATH.name}`): {e}\n\n"
+            "Comprueba que el archivo existe en `models/` y que las "
+            "versiones de scikit-learn/xgboost/catboost instaladas "
+            "coinciden con las usadas para entrenarlo."
+        )
+        st.stop()
 
 # --- MOTOR DE LÓGICA ---
 def get_day_patients_pool(df, day_index, modelo_ia, n_pacientes, semilla):

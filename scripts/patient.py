@@ -24,7 +24,77 @@ La solución real es doble:
 import streamlit as st
 import pandas as pd
 import numpy as np
+import joblib
+from pathlib import Path
 from datetime import datetime, timedelta
+
+from chatbot.i18n import DEFAULT_LANGUAGE, t
+
+# Idioma actual del portal: comparte st.session_state.language con el
+# chatbot (chatbot/app.py). Cuando este script corre embebido en
+# app_unificado.py, el selector de idioma vive en la barra lateral del
+# chatbot y afecta también a esta pestaña; en ejecución independiente
+# (streamlit run scripts/patient.py) no hay selector visible aquí, así que
+# simplemente cae al valor por defecto (castellano).
+def _current_language() -> str:
+    return st.session_state.get("language", DEFAULT_LANGUAGE)
+
+# --------------------------------------------------------------------------- #
+# Riesgo real del "titular" en la agenda simulada
+#
+# Antes: `riesgo_titular = np.random.uniform(0.10, 0.90)` — un número
+# inventado, sin relación con ningún dato ni modelo, pese a que la tarjeta
+# resultante se presenta como "✨ SmartSlot" (overbooking decidido por IA).
+# Ahora: se toma un paciente real de `data/dataset_limpio.csv` y se calcula
+# su probabilidad de no-show con el mismo `models/modelo_definitivo.joblib`
+# (VotingClassifier XGBoost+CatBoost calibrado) que ya usa de verdad
+# `scripts/app.py` — mismas rutas y mismo listado de 19 features, para no
+# duplicar dos versiones que puedan desincronizarse.
+#
+# Se mantiene un fallback a un riesgo aleatorio si el modelo o el dataset no
+# están disponibles (equipo sin el .joblib copiado, csv movido, etc.): igual
+# que el chatbot ya hace con su propio `is_fallback`, esto nunca debe romper
+# la demo, solo perder precisión en ese caso.
+_ROOT_DIR = Path(__file__).resolve().parents[1]
+_RISK_MODEL_PATH = _ROOT_DIR / "models" / "modelo_definitivo.joblib"
+_RISK_DATASET_PATH = _ROOT_DIR / "data" / "dataset_limpio.csv"
+_RISK_FEATURES = [
+    'Age', 'Scholarship', 'Hipertension', 'Diabetes', 'Alcoholism',
+    'Handcap', 'SMS_received', 'Days_between', 'Appointment_Day_of_Week',
+    'Scheduled_Day_of_Week', 'Weekend', 'Appointment_Month',
+    'Scheduled_Month', 'Faltas_Previas', 'Citas_Previas', 'Ratio_Faltas',
+    'Gender_M', 'Scheduled_Time_of_Day_Evening', 'Scheduled_Time_of_Day_Morning',
+]
+
+
+@st.cache_resource(show_spinner=False)
+def _load_risk_model():
+    try:
+        return joblib.load(_RISK_MODEL_PATH)
+    except Exception:
+        return None
+
+
+@st.cache_data(show_spinner=False)
+def _load_risk_dataset():
+    try:
+        return pd.read_csv(_RISK_DATASET_PATH)
+    except Exception:
+        return None
+
+
+def _riesgo_titular_real(modelo, dataset) -> float:
+    """Probabilidad de no-show de un paciente histórico real (predict_proba
+    del modelo entrenado). Si el modelo o el dataset no cargaron, cae a un
+    riesgo aleatorio en el mismo rango que se usaba antes, para que la
+    agenda simulada siga funcionando sin romperse."""
+    if modelo is not None and dataset is not None:
+        try:
+            fila = dataset.sample(n=1)[_RISK_FEATURES]
+            return float(modelo.predict_proba(fila)[0, 1])
+        except Exception:
+            pass
+    return float(np.random.uniform(0.10, 0.90))
 
 # --------------------------------------------------------------------------- #
 # Page config
@@ -42,7 +112,11 @@ def configure_page() -> None:
     any other Streamlit command. Only the script that owns the process
     should call it (this file in standalone mode, or app_unificado.py when
     this tab is embedded in the combined portal)."""
-    st.set_page_config(page_title="Portal Paciente | E&M", layout="wide", initial_sidebar_state="collapsed")
+    st.set_page_config(
+        page_title=t("agenda_page_title", _current_language()),
+        layout="wide",
+        initial_sidebar_state="collapsed",
+    )
 
 # ==========================================
 # 🎨 SISTEMA DE DISEÑO
@@ -237,12 +311,20 @@ def inject_css() -> None:
     """, unsafe_allow_html=True)
 
 # --- BASE DE DATOS DE PACIENTES AMPLIADA ---
+# "historial_key" apunta a una clave de chatbot/i18n.py (hist_*) en vez de a
+# texto fijo, para que la descripción del perfil se traduzca según el idioma
+# elegido en la barra lateral del chatbot.
+# "urgencia_demo" es el nivel de triaje fijo que usa scripts/triaje.py para
+# estos 5 TIS de demostración (salta la conversación/LLM por completo, para
+# que ese camino de la demo sea 100% determinista). No es lo mismo que
+# "riesgo_propio" (probabilidad de NO-SHOW): un paciente puede tener buena
+# asistencia y aun así ser clínicamente prioritario, o al revés.
 PACIENTES_DB = {
-    "111": {"nombre": "Mikel Ezkurdia", "edad": 22, "riesgo_propio": 0.10, "historial": "Excelente (100% asistencia)"},
-    "222": {"nombre": "Ane Larrañaga", "edad": 65, "riesgo_propio": 0.85, "historial": "Crítico (Falla habitualmente)"},
-    "333": {"nombre": "Jon Arretxe", "edad": 41, "riesgo_propio": 0.35, "historial": "Medio (Algún retraso previo)"},
-    "444": {"nombre": "Maite Zabaleta", "edad": 29, "riesgo_propio": 0.65, "historial": "Irregular (Riesgo de cancelación)"},
-    "555": {"nombre": "Aitor Ocio", "edad": 50, "riesgo_propio": 0.05, "historial": "VIP (Nunca falla)"}
+    "111": {"nombre": "Mikel Ezkurdia", "edad": 22, "riesgo_propio": 0.10, "historial_key": "hist_excelente", "urgencia_demo": "normal"},
+    "222": {"nombre": "Ane Larrañaga", "edad": 65, "riesgo_propio": 0.85, "historial_key": "hist_critico", "urgencia_demo": "prioritario"},
+    "333": {"nombre": "Jon Arretxe", "edad": 41, "riesgo_propio": 0.35, "historial_key": "hist_medio", "urgencia_demo": "normal"},
+    "444": {"nombre": "Maite Zabaleta", "edad": 29, "riesgo_propio": 0.65, "historial_key": "hist_irregular", "urgencia_demo": "normal"},
+    "555": {"nombre": "Aitor Ocio", "edad": 50, "riesgo_propio": 0.05, "historial_key": "hist_vip", "urgencia_demo": "normal"},
 }
 
 # --- ESTADOS DE SESIÓN ---
@@ -255,14 +337,23 @@ def _init_session_state() -> None:
         st.session_state.cita_confirmada = None
 
 # --- GENERADOR DE AGENDA ---
+# `lang` forma parte de la firma para que st.cache_data guarde una entrada de
+# caché distinta por idioma (Streamlit incluye los argumentos en la clave de
+# caché), así el nombre del día sale ya traducido sin recalcular nada más.
 @st.cache_data
-def generar_mes_simulado():
+def generar_mes_simulado(lang: str = DEFAULT_LANGUAGE):
     np.random.seed(42)
+    modelo_riesgo = _load_risk_model()
+    dataset_riesgo = _load_risk_dataset()
     agenda = []
     hoy = datetime.now()
     dias_generados = 0
     delta = 1
-    dias_semana = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+    dias_semana = [
+        t("day_monday", lang), t("day_tuesday", lang), t("day_wednesday", lang),
+        t("day_thursday", lang), t("day_friday", lang), t("day_saturday", lang),
+        t("day_sunday", lang),
+    ]
 
     while dias_generados < 5:
         fecha_eval = hoy + timedelta(days=delta)
@@ -275,7 +366,7 @@ def generar_mes_simulado():
         for hora in [9, 10, 11, 12]:
             for minuto in [0, 15, 30, 45]:
                 estado = np.random.choice(["Libre", "Ocupado"], p=[0.2, 0.8])
-                riesgo_titular = np.random.uniform(0.10, 0.90) if estado == "Ocupado" else 0.0
+                riesgo_titular = _riesgo_titular_real(modelo_riesgo, dataset_riesgo) if estado == "Ocupado" else 0.0
                 agenda.append({
                     "fecha": fecha_str,
                     "hora_str": f"{hora:02d}:{minuto:02d}",
@@ -294,7 +385,8 @@ def render_agenda_tab() -> None:
     inject_css()
     _init_session_state()
 
-    agenda_df = generar_mes_simulado()
+    lang = _current_language()
+    agenda_df = generar_mes_simulado(lang)
 
     # --- LAYOUT: 70% PACIENTE (IZQUIERDA, BLANCO) / 30% ADMIN (DERECHA, GRIS) ---
     col_app, col_admin = st.columns([7, 3], gap="large")
@@ -304,25 +396,27 @@ def render_agenda_tab() -> None:
     # ==========================================
     with col_admin:
         with st.container(key="admin_panel"):
-            st.markdown('<span class="admin-eyebrow">Supervisor</span>', unsafe_allow_html=True)
-            st.markdown("### ⚙️ E&M Control IA")
-            st.caption("Dashboard de Supervisor")
+            st.markdown(f'<span class="admin-eyebrow">{t("agenda_admin_eyebrow", lang)}</span>', unsafe_allow_html=True)
+            st.markdown(t("agenda_admin_heading", lang))
+            st.caption(t("agenda_admin_caption", lang))
             st.divider()
 
             umbral_ia = st.slider(
-                "Umbral de Overbooking",
+                t("agenda_admin_threshold_label", lang),
                 min_value=0.10, max_value=0.90, value=0.60, step=0.05,
-                help="Si el titular o el paciente actual superan este riesgo, la IA habilita el slot."
+                help=t("agenda_admin_threshold_help", lang)
             )
 
             st.divider()
-            st.markdown("#### 📋 Base de Datos Demo")
+            st.markdown(t("agenda_admin_db_heading", lang))
+            # IDs/nombres de la demo se dejan sin traducir a propósito (son
+            # identificadores, no texto de interfaz).
             st.code("""ID: 111 (Mikel  - Riesgo: 10%)
 ID: 222 (Ane    - Riesgo: 85%)
 ID: 333 (Jon    - Riesgo: 35%)
 ID: 444 (Maite  - Riesgo: 65%)
 ID: 555 (Aitor  - Riesgo: 5%)""")
-            st.info("💡 Cambia el umbral y observa cómo la IA abre o cierra huecos en tiempo real.")
+            st.info(t("agenda_admin_info", lang))
 
     # ==========================================
     # 📱 IZQUIERDA: APP PACIENTE (BLANCO)
@@ -332,14 +426,18 @@ ID: 555 (Aitor  - Riesgo: 5%)""")
             col_logo, col_titulo = st.columns([1, 8])
             col_logo.image("https://cdn-icons-png.flaticon.com/512/2966/2966327.png", width=52)
             with col_titulo:
-                st.markdown('<span class="patient-eyebrow">Portal del paciente</span>', unsafe_allow_html=True)
-                st.title("Portal OsasunFlow")
+                st.markdown(f'<span class="patient-eyebrow">{t("agenda_portal_eyebrow", lang)}</span>', unsafe_allow_html=True)
+                st.title(t("agenda_portal_title", lang))
 
             if not st.session_state.logged_in:
-                st.markdown("##### Acceso de Pacientes")
+                st.markdown(t("agenda_login_heading", lang))
                 with st.form("login_form"):
-                    paciente_id = st.text_input("Introduzca su Nº de Tarjeta Sanitaria (TIS)", placeholder="Ej: 111, 222, 333...")
-                    submit = st.form_submit_button("Escanear TIS y Acceder", type="primary", use_container_width=True)
+                    paciente_id = st.text_input(
+                        t("agenda_tis_label", lang), placeholder=t("agenda_tis_placeholder", lang)
+                    )
+                    submit = st.form_submit_button(
+                        t("agenda_login_button", lang), type="primary", use_container_width=True
+                    )
 
                     if submit:
                         if paciente_id in PACIENTES_DB:
@@ -347,70 +445,121 @@ ID: 555 (Aitor  - Riesgo: 5%)""")
                             st.session_state.paciente_actual = PACIENTES_DB[paciente_id]
                             st.rerun()
                         else:
-                            st.error("❌ Paciente no encontrado en la base de datos.")
+                            st.error(t("agenda_login_error", lang))
 
             elif st.session_state.logged_in and not st.session_state.cita_confirmada:
                 paciente = st.session_state.paciente_actual
                 riesgo_paciente = paciente['riesgo_propio']
+                historial_texto = t(paciente['historial_key'], lang)
 
                 c1, c2 = st.columns([4, 1])
-                c1.subheader(f"👤 Bienvenido/a, {paciente['nombre']}")
-                c1.markdown(f"**Perfil:** {paciente['historial']} &nbsp;·&nbsp; **Riesgo IA:** {riesgo_paciente*100:.0f}%")
+                c1.subheader(t("agenda_welcome", lang, name=paciente['nombre']))
+                c1.markdown(
+                    t("agenda_profile_line", lang, historial=historial_texto, risk=f"{riesgo_paciente*100:.0f}")
+                )
 
-                if c2.button("Cerrar Sesión", use_container_width=True):
+                if c2.button(t("agenda_logout_button", lang), use_container_width=True):
                     st.session_state.logged_in = False
                     st.session_state.paciente_actual = None
                     st.rerun()
 
                 st.divider()
-                st.markdown("#### Seleccione una fecha para su cita")
 
-                dias_unicos = agenda_df['fecha'].unique()
-                SLOTS_POR_FILA = 4  # 4 columnas -> cuadrícula ordenada por hora
+                # Efecto del triaje previo (scripts/triaje.py) sobre esta
+                # agenda. Los valores "urgente"/"prioritario"/"normal" deben
+                # coincidir con las constantes NIVEL_* de ese archivo — se
+                # repiten aquí en vez de importarlas para no crear un import
+                # circular (triaje.py ya importa PACIENTES_DB de este
+                # módulo). Limitación consciente: es una única variable de
+                # sesión global, no por paciente — ver la nota en triaje.py.
+                nivel_triaje = st.session_state.get("triaje_nivel")
 
-                for dia in dias_unicos:
-                    with st.expander(f"📅 {dia}", expanded=(dia == dias_unicos[0])):
-                        df_dia = agenda_df[agenda_df['fecha'] == dia].reset_index(drop=True)
+                if nivel_triaje == "urgente":
+                    st.error(t("agenda_triaje_urgente_bloqueo", lang))
+                else:
+                    if nivel_triaje == "prioritario":
+                        st.warning(t("agenda_triaje_prioritario_aviso", lang))
 
-                        # Una fila de columnas NUEVA por cada grupo de 4 horas:
-                        # así las celdas de una misma fila son hermanas en el
-                        # mismo contenedor flex y se alinean de verdad.
-                        for fila_inicio in range(0, len(df_dia), SLOTS_POR_FILA):
-                            fila_slots = df_dia.iloc[fila_inicio:fila_inicio + SLOTS_POR_FILA]
-                            row_cols = st.columns(SLOTS_POR_FILA)
+                    st.markdown(t("agenda_select_date_heading", lang))
 
-                            for col_idx, (_, slot) in enumerate(fila_slots.iterrows()):
-                                hora = slot['hora_str']
-                                estado = slot['estado_base']
-                                riesgo_titular = slot['riesgo_titular']
-                                condicion_overbooking = (riesgo_titular >= umbral_ia) or (riesgo_paciente >= umbral_ia)
+                    dias_unicos = agenda_df['fecha'].unique()
+                    SLOTS_POR_FILA = 4  # 4 columnas -> cuadrícula ordenada por hora
 
-                                with row_cols[col_idx]:
-                                    if estado == "Libre":
-                                        st.markdown(f'<div class="slot-card"><b>{hora}</b><br>✅ Libre</div>', unsafe_allow_html=True)
-                                        if st.button("Reservar", key=f"btn_{dia}_{hora}", use_container_width=True):
-                                            st.session_state.cita_confirmada = f"{dia} a las {hora}"
-                                            st.rerun()
+                    for idx_dia, dia in enumerate(dias_unicos):
+                        # Con nivel "prioritario", solo el primer día
+                        # disponible se puede reservar; el resto se muestran
+                        # bloqueados hasta que ese hueco urgente quede
+                        # cubierto.
+                        dia_bloqueado = (nivel_triaje == "prioritario" and idx_dia > 0)
+                        titulo_dia = f"📅 {dia}"
+                        if dia_bloqueado:
+                            titulo_dia += f" — {t('agenda_triaje_dia_bloqueado', lang)}"
 
-                                    elif estado == "Ocupado" and condicion_overbooking:
-                                        st.markdown(f'<div class="slot-overbooking"><b>{hora}</b><br>✨ SmartSlot</div>', unsafe_allow_html=True)
-                                        if st.button("Reservar ", key=f"ob_{dia}_{hora}", use_container_width=True):
-                                            st.session_state.cita_confirmada = f"{dia} a las {hora} (Optimizada por IA)"
-                                            st.rerun()
+                        with st.expander(titulo_dia, expanded=(dia == dias_unicos[0])):
+                            if dia_bloqueado:
+                                st.caption(t("agenda_triaje_dia_bloqueado_detalle", lang))
+                                continue
 
-                                    else:  # Ocupado, sin overbooking
-                                        st.markdown(f'<div class="slot-full"><b>{hora}</b><br>❌ Ocupado</div>', unsafe_allow_html=True)
-                                        st.button("No disponible", key=f"na_{dia}_{hora}", use_container_width=True, disabled=True)
+                            df_dia = agenda_df[agenda_df['fecha'] == dia].reset_index(drop=True)
+
+                            # Una fila de columnas NUEVA por cada grupo de 4 horas:
+                            # así las celdas de una misma fila son hermanas en el
+                            # mismo contenedor flex y se alinean de verdad.
+                            for fila_inicio in range(0, len(df_dia), SLOTS_POR_FILA):
+                                fila_slots = df_dia.iloc[fila_inicio:fila_inicio + SLOTS_POR_FILA]
+                                row_cols = st.columns(SLOTS_POR_FILA)
+
+                                for col_idx, (_, slot) in enumerate(fila_slots.iterrows()):
+                                    hora = slot['hora_str']
+                                    estado = slot['estado_base']
+                                    riesgo_titular = slot['riesgo_titular']
+                                    condicion_overbooking = (riesgo_titular >= umbral_ia) or (riesgo_paciente >= umbral_ia)
+
+                                    with row_cols[col_idx]:
+                                        if estado == "Libre":
+                                            st.markdown(
+                                                f'<div class="slot-card"><b>{hora}</b><br>{t("agenda_slot_free", lang)}</div>',
+                                                unsafe_allow_html=True,
+                                            )
+                                            if st.button(t("agenda_reserve_button", lang), key=f"btn_{dia}_{hora}", use_container_width=True):
+                                                st.session_state.cita_confirmada = {"dia": dia, "hora": hora, "ai": False}
+                                                st.rerun()
+
+                                        elif estado == "Ocupado" and condicion_overbooking:
+                                            st.markdown(
+                                                f'<div class="slot-overbooking"><b>{hora}</b><br>{t("agenda_slot_smartslot", lang)}</div>',
+                                                unsafe_allow_html=True,
+                                            )
+                                            if st.button(t("agenda_reserve_button", lang), key=f"ob_{dia}_{hora}", use_container_width=True):
+                                                st.session_state.cita_confirmada = {"dia": dia, "hora": hora, "ai": True}
+                                                st.rerun()
+
+                                        else:  # Ocupado, sin overbooking
+                                            st.markdown(
+                                                f'<div class="slot-full"><b>{hora}</b><br>{t("agenda_slot_occupied", lang)}</div>',
+                                                unsafe_allow_html=True,
+                                            )
+                                            st.button(
+                                                t("agenda_unavailable_button", lang),
+                                                key=f"na_{dia}_{hora}", use_container_width=True, disabled=True,
+                                            )
 
             elif st.session_state.cita_confirmada:
-                st.success("🎉 Cita agendada correctamente.")
-                st.markdown(f"""
-            ### 🎫 Resumen de Cita
-            * **Paciente:** {st.session_state.paciente_actual['nombre']}
-            * **Fecha y Hora:** {st.session_state.cita_confirmada}
-            """)
+                cita = st.session_state.cita_confirmada
+                cuando = f"{cita['dia']} — {cita['hora']}"
+                if cita.get("ai"):
+                    cuando += t("agenda_summary_ai_suffix", lang)
 
-                if st.button("Volver al Inicio", type="primary"):
+                st.success(t("agenda_confirmed_success", lang))
+                st.markdown(
+                    "\n".join([
+                        t("agenda_summary_heading", lang),
+                        t("agenda_summary_patient", lang, name=st.session_state.paciente_actual['nombre']),
+                        t("agenda_summary_datetime", lang, when=cuando),
+                    ])
+                )
+
+                if st.button(t("agenda_back_button", lang), type="primary"):
                     st.session_state.logged_in = False
                     st.session_state.cita_confirmada = None
                     st.session_state.paciente_actual = None
