@@ -96,6 +96,91 @@ def _riesgo_titular_real(modelo, dataset) -> float:
             pass
     return float(np.random.uniform(0.10, 0.90))
 
+
+def _construir_features_nuevo_paciente(
+    edad: int,
+    genero_m: bool,
+    hipertension: bool,
+    diabetes: bool,
+    alcoholismo: bool,
+    discapacidad: bool,
+    beca: bool,
+) -> pd.DataFrame:
+    """Construye la fila de las 19 features que espera
+    `models/modelo_definitivo.joblib` para un paciente NUEVO (no está en
+    PACIENTES_DB ni en el dataset histórico), a partir de las respuestas de
+    un formulario corto (scripts/triaje.py: _render_riesgo_form_paso) —
+    "las míticas preguntas" que hacía el chatbot de admisión clásico para
+    poder calcular una probabilidad de no-show real, en vez de asumir un
+    0.0 fijo para todo paciente sin historial.
+
+    Dos grupos de columnas:
+      - A nivel de PERSONA, se preguntan directamente: Age, Gender_M,
+        Hipertension, Diabetes, Alcoholism, Handcap, Scholarship.
+      - A nivel de CONTEXTO DE LA CITA (Days_between,
+        Appointment/Scheduled_Day_of_Week, Weekend, Appointment/
+        Scheduled_Month, Scheduled_Time_of_Day_*), que en este punto del
+        flujo aún no se conocen (el paciente todavía no ha elegido día ni
+        hora), se usan valores por defecto razonables: se asume que pide
+        cita para "mañana" desde "ahora mismo", con SMS de recordatorio y
+        sin historial previo de citas/faltas. Esta es la misma
+        simplificación que ya existe para los 5 pacientes de la demo
+        (PACIENTES_DB): su `riesgo_propio` es un único valor fijo,
+        independientemente del día/hueco que acaben eligiendo.
+    """
+    ahora = datetime.now()
+    manana = ahora + timedelta(days=1)
+    hora_actual = ahora.hour
+
+    fila = {
+        "Age": edad,
+        "Scholarship": int(beca),
+        "Hipertension": int(hipertension),
+        "Diabetes": int(diabetes),
+        "Alcoholism": int(alcoholismo),
+        "Handcap": int(discapacidad),
+        "SMS_received": 1,
+        "Days_between": 1,
+        "Appointment_Day_of_Week": manana.weekday(),
+        "Scheduled_Day_of_Week": ahora.weekday(),
+        "Weekend": int(manana.weekday() >= 5),
+        "Appointment_Month": manana.month,
+        "Scheduled_Month": ahora.month,
+        "Faltas_Previas": 0,
+        "Citas_Previas": 0,
+        "Ratio_Faltas": 0.0,
+        "Gender_M": int(genero_m),
+        "Scheduled_Time_of_Day_Evening": int(hora_actual >= 18),
+        "Scheduled_Time_of_Day_Morning": int(hora_actual < 14),
+    }
+    return pd.DataFrame([fila])[_RISK_FEATURES]
+
+
+def calcular_riesgo_nuevo_paciente(
+    edad: int,
+    genero_m: bool,
+    hipertension: bool,
+    diabetes: bool,
+    alcoholismo: bool,
+    discapacidad: bool,
+    beca: bool,
+) -> float:
+    """Probabilidad de no-show real (predict_proba del modelo entrenado)
+    para un paciente nuevo, a partir de las respuestas de su formulario de
+    riesgo. Mismo fallback que `_riesgo_titular_real` si el modelo no está
+    disponible: un riesgo aleatorio en el mismo rango, para que la demo
+    nunca se rompa por esto, solo pierda precisión."""
+    modelo = _load_risk_model()
+    if modelo is not None:
+        try:
+            fila = _construir_features_nuevo_paciente(
+                edad, genero_m, hipertension, diabetes, alcoholismo, discapacidad, beca,
+            )
+            return float(modelo.predict_proba(fila)[0, 1])
+        except Exception:
+            pass
+    return float(np.random.uniform(0.10, 0.90))
+
 # --------------------------------------------------------------------------- #
 # Page config
 #
@@ -225,7 +310,7 @@ def inject_css() -> None:
     }}
 
     /* ---------- PANEL ADMIN (derecha, gris oscuro) ---------- */
-    .st-key-admin_panel {{
+    .st-key-admin_panel , .st-key-admin_panel_triaje {{
         background-color: {COLOR_ADMIN_BG};
         border: 1px solid {COLOR_ADMIN_BORDER};
         border-radius: 16px;
@@ -233,32 +318,32 @@ def inject_css() -> None:
         box-shadow: inset 0px 0px 0px 1px rgba(255,255,255,0.02),
                     0px 12px 32px rgba(0,0,0,0.25);
     }}
-    .st-key-admin_panel p,
-    .st-key-admin_panel span,
-    .st-key-admin_panel label {{
+    .st-key-admin_panel p, .st-key-admin_panel_triaje p,
+    .st-key-admin_panel span, .st-key-admin_panel_triaje span,
+    .st-key-admin_panel label , .st-key-admin_panel_triaje label {{
         color: {COLOR_ADMIN_TEXT};
     }}
-    .st-key-admin_panel h1,
-    .st-key-admin_panel h2,
-    .st-key-admin_panel h3 {{
+    .st-key-admin_panel h1, .st-key-admin_panel_triaje h1,
+    .st-key-admin_panel h2, .st-key-admin_panel_triaje h2,
+    .st-key-admin_panel h3 , .st-key-admin_panel_triaje h3 {{
         color: {COLOR_ADMIN_TEXT};
         letter-spacing: -0.01em;
     }}
-    .st-key-admin_panel [data-testid="stCaptionContainer"] {{
+    .st-key-admin_panel [data-testid="stCaptionContainer"] , .st-key-admin_panel_triaje [data-testid="stCaptionContainer"] {{
         color: {COLOR_ADMIN_MUTED};
     }}
-    .st-key-admin_panel hr {{
+    .st-key-admin_panel hr , .st-key-admin_panel_triaje hr {{
         border-color: {COLOR_ADMIN_BORDER};
     }}
-    .st-key-admin_panel [data-testid="stCodeBlock"] pre {{
+    .st-key-admin_panel [data-testid="stCodeBlock"] pre , .st-key-admin_panel_triaje [data-testid="stCodeBlock"] pre {{
         background-color: {COLOR_ADMIN_BG_ALT} !important;
         border: 1px solid {COLOR_ADMIN_BORDER};
         border-radius: 10px;
     }}
-    .st-key-admin_panel [data-testid="stCodeBlock"] code {{
+    .st-key-admin_panel [data-testid="stCodeBlock"] code , .st-key-admin_panel_triaje [data-testid="stCodeBlock"] code {{
         color: {COLOR_ADMIN_TEXT} !important;
     }}
-    .st-key-admin_panel [data-testid="stAlertContainer"] {{
+    .st-key-admin_panel [data-testid="stAlertContainer"] , .st-key-admin_panel_triaje [data-testid="stAlertContainer"] {{
         background-color: {COLOR_ADMIN_BG_ALT};
         border: 1px solid {COLOR_ADMIN_BORDER};
         color: {COLOR_ADMIN_TEXT};
@@ -307,6 +392,27 @@ def inject_css() -> None:
         color: {COLOR_ACCENT_MUTED};
         opacity: 0.9;
     }}
+
+    /* ---------- "Cómo funciona" (3 pasos, pantalla de login del triaje) ---------- */
+    .triaje-paso {{
+        text-align: center;
+        padding: 0.5rem 0.75rem 1rem 0.75rem;
+    }}
+    .triaje-paso-icono {{
+        font-size: 1.9rem;
+        margin-bottom: 0.35rem;
+    }}
+    .triaje-paso-titulo {{
+        font-weight: 700;
+        font-size: 0.92rem;
+        color: {COLOR_PATIENT_TEXT};
+        margin-bottom: 0.2rem;
+    }}
+    .triaje-paso-desc {{
+        font-size: 0.82rem;
+        color: {COLOR_PATIENT_MUTED};
+        line-height: 1.3;
+    }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -339,6 +445,49 @@ _UMBRAL_IA_STATE_KEY = "agenda_umbral_ia"
 
 def _get_umbral_ia() -> float:
     return st.session_state.get(_UMBRAL_IA_STATE_KEY, UMBRAL_IA_DEFECTO)
+
+
+def render_admin_panel_content(lang: str) -> None:
+    """Contenido del panel de administración/IA: eyebrow, umbral de
+    overbooking (SmartSlot), IDs de la demo e info. Extraído de
+    render_agenda_tab a una función propia para poder reutilizarlo tal
+    cual en la vista de triaje en solitario (scripts/triaje.py /
+    app_unificado_triaje.py), que también necesita mostrar este panel —
+    antes se había sustituido ahí por un simple desplegable en la barra
+    lateral con solo el slider, pero eso escondía el resto del panel (los
+    IDs de la demo, la explicación del umbral) que hacía falta para poder
+    enseñar/probar la IA de overbooking en esa vista.
+
+    El LLAMADOR es responsable de envolver esto en su propio
+    `st.container(key=...)` con el estilo de `.st-key-admin_panel` (ver
+    inject_css) — cada sitio que la usa necesita su propia key distinta
+    (Streamlit no permite dos elementos con la misma key en el mismo
+    script run): render_agenda_tab usa "admin_panel", la vista de triaje
+    usa "admin_panel_triaje". inject_css() ya aplica el mismo estilo a las
+    dos.
+    """
+    st.markdown(f'<span class="admin-eyebrow">{t("agenda_admin_eyebrow", lang)}</span>', unsafe_allow_html=True)
+    st.markdown(t("agenda_admin_heading", lang))
+    st.caption(t("agenda_admin_caption", lang))
+    st.divider()
+
+    st.slider(
+        t("agenda_admin_threshold_label", lang),
+        min_value=0.10, max_value=0.90, value=UMBRAL_IA_DEFECTO, step=0.05,
+        help=t("agenda_admin_threshold_help", lang),
+        key=_UMBRAL_IA_STATE_KEY,
+    )
+
+    st.divider()
+    st.markdown(t("agenda_admin_db_heading", lang))
+    # IDs/nombres de la demo se dejan sin traducir a propósito (son
+    # identificadores, no texto de interfaz).
+    st.code("""ID: 111 (Mikel  - Riesgo: 10%)
+ID: 222 (Ane    - Riesgo: 85%)
+ID: 333 (Jon    - Riesgo: 35%)
+ID: 444 (Maite  - Riesgo: 65%)
+ID: 555 (Aitor  - Riesgo: 5%)""")
+    st.info(t("agenda_admin_info", lang))
 
 
 # --- ESTADOS DE SESIÓN ---
@@ -441,19 +590,17 @@ def render_dia_selector(
     SLOTS_POR_FILA = 4  # 4 columnas -> cuadrícula ordenada por hora
 
     for idx_dia, dia in enumerate(dias_unicos):
-        # Con nivel "prioritario", solo el primer día disponible se puede
-        # reservar; el resto se muestran bloqueados hasta que ese hueco
-        # urgente quede cubierto.
-        dia_bloqueado = (nivel_triaje == "prioritario" and idx_dia > 0)
+        # Nota: con nivel "prioritario" NO se bloquea ningún día — el
+        # paciente puede reservar el día que prefiera, igual que con nivel
+        # "normal". La única diferencia de "prioritario" es el aviso de
+        # arriba recomendándole coger el hueco más próximo; antes esto
+        # bloqueaba todos los días salvo el primero, pero eso obligaba al
+        # paciente a un único día concreto en vez de dejarle elegir, que es
+        # justo lo contrario de lo que se pretendía con "prioritario"
+        # (verle ANTES, no forzarle a una fecha fija que puede no encajarle).
         titulo_dia = f"📅 {dia}"
-        if dia_bloqueado:
-            titulo_dia += f" — {t('agenda_triaje_dia_bloqueado', lang)}"
 
         with st.expander(titulo_dia, expanded=(dia == dias_unicos[0])):
-            if dia_bloqueado:
-                st.caption(t("agenda_triaje_dia_bloqueado_detalle", lang))
-                continue
-
             df_dia = agenda_df[agenda_df['fecha'] == dia].reset_index(drop=True)
 
             # Una fila de columnas NUEVA por cada grupo de 4 horas: así las
@@ -519,28 +666,8 @@ def render_agenda_tab() -> None:
     # ==========================================
     with col_admin:
         with st.container(key="admin_panel"):
-            st.markdown(f'<span class="admin-eyebrow">{t("agenda_admin_eyebrow", lang)}</span>', unsafe_allow_html=True)
-            st.markdown(t("agenda_admin_heading", lang))
-            st.caption(t("agenda_admin_caption", lang))
-            st.divider()
-
-            umbral_ia = st.slider(
-                t("agenda_admin_threshold_label", lang),
-                min_value=0.10, max_value=0.90, value=UMBRAL_IA_DEFECTO, step=0.05,
-                help=t("agenda_admin_threshold_help", lang),
-                key=_UMBRAL_IA_STATE_KEY,
-            )
-
-            st.divider()
-            st.markdown(t("agenda_admin_db_heading", lang))
-            # IDs/nombres de la demo se dejan sin traducir a propósito (son
-            # identificadores, no texto de interfaz).
-            st.code("""ID: 111 (Mikel  - Riesgo: 10%)
-ID: 222 (Ane    - Riesgo: 85%)
-ID: 333 (Jon    - Riesgo: 35%)
-ID: 444 (Maite  - Riesgo: 65%)
-ID: 555 (Aitor  - Riesgo: 5%)""")
-            st.info(t("agenda_admin_info", lang))
+            render_admin_panel_content(lang)
+    umbral_ia = _get_umbral_ia()
 
     # ==========================================
     # 📱 IZQUIERDA: APP PACIENTE (BLANCO)

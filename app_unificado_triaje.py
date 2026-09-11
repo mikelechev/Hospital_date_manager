@@ -1,34 +1,27 @@
 # -*- coding: utf-8 -*-
 """
-Portal unificado del paciente + triaje previo a la cita.
+Vista de paciente: triaje previo a la cita.
 
-Variante de `app_unificado.py` con una tercera pestaña añadida: el triaje
-de `scripts/triaje.py`. Vive en su PROPIO archivo, en vez de dentro de
-`app_unificado.py`, a propósito — así el portal original de dos pestañas
-(el que ya funcionaba en producción/demo) queda intacto y sin ningún
-riesgo de que un fallo de esta función nueva lo arrastre consigo.
+Punto de entrada dedicado SOLO al triaje (`scripts/triaje.py`), pensado
+como el POV del paciente: TIS -> pregunta médica -> resultado -> elegir
+día y hora, todo en una única pantalla, sin pestañas de chat de admisión
+ni de Agenda clásica que no pintan nada en el flujo del paciente (esas
+son para el personal / la demo técnica, no para quien está reservando
+cita). Vive en su PROPIO archivo, separado de `app_unificado.py` (el
+portal de dos pestañas chat+agenda, sin triaje), a propósito — cada uno
+sirve una demo distinta y un cambio en uno no puede romper el otro.
 
-Combina tres puntos de entrada:
+No duplica lógica: importa y reutiliza `render_triaje_tab()` de
+`scripts/triaje.py`, que a su vez reutiliza `scripts/patient.py` para la
+cuadrícula de horarios. `scripts/triaje.py` no tiene modo standalone
+propio (no tiene sentido fuera de este flujo), así que solo funciona
+embebido aquí.
 
-- chatbot/app.py     -> Asistente conversacional de admisión (intake, ficha
-                         clínica, predicción de riesgo de no-show).
-- scripts/triaje.py  -> Triaje previo a la cita: TIS, síntomas, y la IA
-                         decide si el caso es urgente/prioritario/normal.
-- scripts/patient.py -> Portal de reserva de citas (login por TIS, cuadrícula
-                         de horarios, overbooking asistido por IA), que lee
-                         el resultado del triaje para restringir qué días
-                         se pueden reservar.
-
-No duplica lógica: importa y reutiliza las funciones `render_*_tab()` de
-los tres módulos. Cada uno sigue funcionando exactamente igual si se
-ejecuta por separado:
-
-    streamlit run chatbot/app.py
-    streamlit run scripts/patient.py
-
-`scripts/triaje.py` es la excepción: al no tener sentido de forma aislada
-(su función es enlazar el chat con la reserva), solo funciona embebido
-aquí — no tiene un modo standalone propio.
+El panel admin/IA (umbral de overbooking SmartSlot, IDs de la demo) se
+muestra igual que en el portal de dos pestañas: una columna propia junto a
+la del paciente (ver `render_admin_panel_content` en `scripts/patient.py`,
+reutilizada por `render_triaje_tab` con su propia container key para no
+chocar con la de la Agenda clásica).
 
 Para lanzar esta variante, ejecutar desde la raíz del proyecto:
 
@@ -37,21 +30,21 @@ Para lanzar esta variante, ejecutar desde la raíz del proyecto:
 
 import streamlit as st
 
-from chatbot.app import render_chatbot_tab
-from chatbot.i18n import DEFAULT_LANGUAGE, t
-from scripts.patient import render_agenda_tab
+from chatbot.i18n import DEFAULT_LANGUAGE, LANGUAGES, t
 from scripts.triaje import render_triaje_tab
 
-# Idioma: mismo st.session_state.language que fija el selector de la barra
-# lateral del chatbot (chatbot/app.py). En la primerísima carga de una
-# sesión nueva ese selector aún no se ha renderizado, así que cae al
-# castellano por defecto hasta que el usuario elija euskera.
+# Idioma: propio selector en la barra lateral de esta vista (no depende de
+# chatbot/app.py, que ya no se monta aquí). Mismo patrón que el selector
+# del chatbot (chatbot/app.py: render_sidebar) para que el comportamiento
+# sea idéntico en toda la app: key="language" en session_state, así que
+# scripts/patient.py y scripts/triaje.py (que leen ese mismo valor) se
+# traducen igual sin ningún cambio adicional.
 _lang = st.session_state.get("language", DEFAULT_LANGUAGE)
 
-# Config de página única para toda la app (ni chatbot/app.py ni
-# scripts/patient.py ni scripts/triaje.py la fijan cuando se usan como
-# pestañas: ver `configure_page()` en cada uno, que solo se llama en su
-# propio main() cuando existe).
+# Config de página única para toda la app (scripts/triaje.py y
+# scripts/patient.py no la fijan cuando se usan embebidos: ver
+# `configure_page()` en scripts/patient.py, que solo se llama en su
+# propio main()).
 st.set_page_config(
     page_title=t("unified_page_title", _lang),
     page_icon="🏥",
@@ -59,20 +52,17 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-st.title(t("unified_title", _lang))
-st.caption(t("unified_caption", _lang))
+with st.sidebar:
+    st.segmented_control(
+        t("sidebar_language_label", _lang),
+        options=list(LANGUAGES.keys()),
+        format_func=lambda k: LANGUAGES[k],
+        key="language",
+        help=t("sidebar_language_help", _lang),
+    )
+    # El idioma pudo cambiar en este mismo rerun: relee tras el widget para
+    # que el resto de la página use ya el idioma recién elegido.
+    _lang = st.session_state.get("language", DEFAULT_LANGUAGE)
+    st.divider()
 
-tab_chat, tab_triaje, tab_agenda = st.tabs([
-    t("unified_tab_chat", _lang),
-    t("unified_tab_triaje", _lang),
-    t("unified_tab_agenda", _lang),
-])
-
-with tab_chat:
-    render_chatbot_tab()
-
-with tab_triaje:
-    render_triaje_tab()
-
-with tab_agenda:
-    render_agenda_tab()
+render_triaje_tab()
