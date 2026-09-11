@@ -159,55 +159,55 @@ def inject_css() -> None:
     }}
 
     /* ---------- PANEL PACIENTE (izquierda, blanco) ---------- */
-    .st-key-patient_panel {{
+    .st-key-patient_panel , .st-key-triaje_panel {{
         background-color: {COLOR_PATIENT_BG};
         border: 1px solid {COLOR_PATIENT_BORDER};
         border-radius: 16px;
         padding: 2.25rem 2.5rem;
         box-shadow: 0px 12px 32px rgba(17, 24, 39, 0.06);
     }}
-    .st-key-patient_panel p,
-    .st-key-patient_panel span,
-    .st-key-patient_panel label {{
+    .st-key-patient_panel p, .st-key-triaje_panel p,
+    .st-key-patient_panel span, .st-key-triaje_panel span,
+    .st-key-patient_panel label , .st-key-triaje_panel label {{
         color: {COLOR_PATIENT_TEXT};
     }}
-    .st-key-patient_panel h1,
-    .st-key-patient_panel h2,
-    .st-key-patient_panel h3 {{
+    .st-key-patient_panel h1, .st-key-triaje_panel h1,
+    .st-key-patient_panel h2, .st-key-triaje_panel h2,
+    .st-key-patient_panel h3 , .st-key-triaje_panel h3 {{
         color: {COLOR_PATIENT_TEXT};
         letter-spacing: -0.01em;
     }}
-    .st-key-patient_panel [data-testid="stCaptionContainer"] {{
+    .st-key-patient_panel [data-testid="stCaptionContainer"] , .st-key-triaje_panel [data-testid="stCaptionContainer"] {{
         color: {COLOR_PATIENT_MUTED};
     }}
-    .st-key-patient_panel hr {{
+    .st-key-patient_panel hr , .st-key-triaje_panel hr {{
         border-color: {COLOR_PATIENT_BORDER};
     }}
 
     /* Botones Principales (Acceder) */
-    .st-key-patient_panel button[kind="primary"],
-    .st-key-patient_panel button[kind="primaryFormSubmit"] {{
+    .st-key-patient_panel button[kind="primary"], .st-key-triaje_panel button[kind="primary"],
+    .st-key-patient_panel button[kind="primaryFormSubmit"] , .st-key-triaje_panel button[kind="primaryFormSubmit"] {{
         background-color: {COLOR_ACCENT_FREE} !important;
         border: 1px solid {COLOR_ACCENT_FREE} !important;
         color: #FFFFFF !important;
         border-radius: 8px;
         font-weight: 600;
     }}
-    .st-key-patient_panel button[kind="primary"]:hover,
-    .st-key-patient_panel button[kind="primaryFormSubmit"]:hover {{
+    .st-key-patient_panel button[kind="primary"]:hover, .st-key-triaje_panel button[kind="primary"]:hover,
+    .st-key-patient_panel button[kind="primaryFormSubmit"]:hover , .st-key-triaje_panel button[kind="primaryFormSubmit"]:hover {{
         background-color: #128A3E !important;
         border-color: #128A3E !important;
     }}
 
     /* Botones Secundarios (Reservar, Cerrar Sesión) */
-    .st-key-patient_panel button[kind="secondary"] {{
+    .st-key-patient_panel button[kind="secondary"] , .st-key-triaje_panel button[kind="secondary"] {{
         background-color: #FFFFFF !important;
         border-radius: 8px;
         border: 1px solid #D1D5DB !important;
         color: {COLOR_PATIENT_TEXT} !important;
         font-weight: 600;
     }}
-    .st-key-patient_panel button[kind="secondary"]:hover {{
+    .st-key-patient_panel button[kind="secondary"]:hover , .st-key-triaje_panel button[kind="secondary"]:hover {{
         background-color: #F3F4F6 !important;
         border-color: #9CA3AF !important;
         color: #111827 !important;
@@ -215,8 +215,8 @@ def inject_css() -> None:
 
     /* Botón deshabilitado "No disponible": mismo tamaño, look apagado,
        para que las tarjetas ocupadas midan igual que las reservables */
-    .st-key-patient_panel button:disabled,
-    .st-key-patient_panel button[kind="secondary"]:disabled {{
+    .st-key-patient_panel button:disabled, .st-key-triaje_panel button:disabled,
+    .st-key-patient_panel button[kind="secondary"]:disabled , .st-key-triaje_panel button[kind="secondary"]:disabled {{
         background-color: #F9FAFB !important;
         border: 1px dashed #E1E4E8 !important;
         color: #C1C6CD !important;
@@ -314,18 +314,32 @@ def inject_css() -> None:
 # "historial_key" apunta a una clave de chatbot/i18n.py (hist_*) en vez de a
 # texto fijo, para que la descripción del perfil se traduzca según el idioma
 # elegido en la barra lateral del chatbot.
-# "urgencia_demo" es el nivel de triaje fijo que usa scripts/triaje.py para
-# estos 5 TIS de demostración (salta la conversación/LLM por completo, para
-# que ese camino de la demo sea 100% determinista). No es lo mismo que
-# "riesgo_propio" (probabilidad de NO-SHOW): un paciente puede tener buena
-# asistencia y aun así ser clínicamente prioritario, o al revés.
+#
+# Nota sobre el triaje (scripts/triaje.py): estos 5 TIS ya NO se saltan la
+# pregunta médica del triaje — todo paciente, conocido o no, responde a esa
+# pregunta y la IA decide el nivel a partir de su respuesta. Lo único que se
+# salta para un TIS conocido es la pregunta de edad (ya está aquí, en
+# "edad"), para no volver a pedir un dato que el sistema ya tiene.
 PACIENTES_DB = {
-    "111": {"nombre": "Mikel Ezkurdia", "edad": 22, "riesgo_propio": 0.10, "historial_key": "hist_excelente", "urgencia_demo": "normal"},
-    "222": {"nombre": "Ane Larrañaga", "edad": 65, "riesgo_propio": 0.85, "historial_key": "hist_critico", "urgencia_demo": "prioritario"},
-    "333": {"nombre": "Jon Arretxe", "edad": 41, "riesgo_propio": 0.35, "historial_key": "hist_medio", "urgencia_demo": "normal"},
-    "444": {"nombre": "Maite Zabaleta", "edad": 29, "riesgo_propio": 0.65, "historial_key": "hist_irregular", "urgencia_demo": "normal"},
-    "555": {"nombre": "Aitor Ocio", "edad": 50, "riesgo_propio": 0.05, "historial_key": "hist_vip", "urgencia_demo": "normal"},
+    "111": {"nombre": "Mikel Ezkurdia", "edad": 22, "riesgo_propio": 0.10, "historial_key": "hist_excelente"},
+    "222": {"nombre": "Ane Larrañaga", "edad": 65, "riesgo_propio": 0.85, "historial_key": "hist_critico"},
+    "333": {"nombre": "Jon Arretxe", "edad": 41, "riesgo_propio": 0.35, "historial_key": "hist_medio"},
+    "444": {"nombre": "Maite Zabaleta", "edad": 29, "riesgo_propio": 0.65, "historial_key": "hist_irregular"},
+    "555": {"nombre": "Aitor Ocio", "edad": 50, "riesgo_propio": 0.05, "historial_key": "hist_vip"},
 }
+
+# Umbral de overbooking (SmartSlot) por defecto y clave de session_state del
+# slider del panel admin (ver render_agenda_tab). Se usa como valor inicial
+# del slider Y como valor que lee el flujo de reserva integrado en el
+# triaje (scripts/triaje.py), que no muestra el panel admin pero debe
+# respetar el mismo umbral si ya se ha tocado el slider en esta sesión.
+UMBRAL_IA_DEFECTO = 0.60
+_UMBRAL_IA_STATE_KEY = "agenda_umbral_ia"
+
+
+def _get_umbral_ia() -> float:
+    return st.session_state.get(_UMBRAL_IA_STATE_KEY, UMBRAL_IA_DEFECTO)
+
 
 # --- ESTADOS DE SESIÓN ---
 def _init_session_state() -> None:
@@ -376,6 +390,115 @@ def generar_mes_simulado(lang: str = DEFAULT_LANGUAGE):
         dias_generados += 1
     return pd.DataFrame(agenda)
 
+def render_dia_selector(
+    agenda_df: pd.DataFrame,
+    lang: str,
+    umbral_ia: float,
+    riesgo_paciente: float,
+    nivel_triaje,
+    key_prefix: str = "ag",
+    mostrar_aviso_nivel: bool = True,
+    confirmacion_key: str = "cita_confirmada",
+) -> None:
+    """Cuadrícula de días/huecos con el gating de triaje aplicado.
+
+    Compartida por dos puntos de entrada: la pestaña de Agenda clásica
+    (render_agenda_tab, tras el login por TIS) y el flujo integrado
+    triaje -> reserva (scripts/triaje.py), que ya conoce el TIS y el nivel
+    de triaje desde su propio login y quiere pasar directamente a elegir
+    día sin un segundo login ni cambiar de pestaña.
+
+    `key_prefix` evita colisiones de key entre botones: Streamlit ejecuta
+    el cuerpo de TODAS las pestañas en cada rerun (no solo la visible), así
+    que si la Agenda clásica y el flujo integrado del triaje están montados
+    a la vez (dos pestañas del mismo app_unificado_triaje.py), cada uno
+    necesita sus propias keys de botón para el mismo día/hora.
+
+    `mostrar_aviso_nivel=False` omite el aviso de "caso prioritario" que ya
+    se le ha mostrado al paciente justo antes de llamar a esta función
+    (evita repetir el mismo mensaje dos veces seguidas).
+
+    `confirmacion_key` es la clave de session_state donde se guarda la cita
+    reservada. Por el mismo motivo que `key_prefix`, cada llamador usa la
+    suya (en vez de compartir siempre "cita_confirmada"): como las dos
+    pestañas están montadas a la vez, si compartieran la misma clave, una
+    reserva hecha desde el triaje activaría también la pantalla de "cita
+    confirmada" de la Agenda clásica, que espera encontrar el perfil
+    completo del paciente en `st.session_state.paciente_actual` — un
+    paciente nuevo llegado por triaje no tiene esa ficha, y forzarla
+    rompería esa pantalla.
+    """
+    if nivel_triaje == "urgente":
+        st.error(t("agenda_triaje_urgente_bloqueo", lang))
+        return
+
+    if nivel_triaje == "prioritario" and mostrar_aviso_nivel:
+        st.warning(t("agenda_triaje_prioritario_aviso", lang))
+
+    st.markdown(t("agenda_select_date_heading", lang))
+
+    dias_unicos = agenda_df['fecha'].unique()
+    SLOTS_POR_FILA = 4  # 4 columnas -> cuadrícula ordenada por hora
+
+    for idx_dia, dia in enumerate(dias_unicos):
+        # Con nivel "prioritario", solo el primer día disponible se puede
+        # reservar; el resto se muestran bloqueados hasta que ese hueco
+        # urgente quede cubierto.
+        dia_bloqueado = (nivel_triaje == "prioritario" and idx_dia > 0)
+        titulo_dia = f"📅 {dia}"
+        if dia_bloqueado:
+            titulo_dia += f" — {t('agenda_triaje_dia_bloqueado', lang)}"
+
+        with st.expander(titulo_dia, expanded=(dia == dias_unicos[0])):
+            if dia_bloqueado:
+                st.caption(t("agenda_triaje_dia_bloqueado_detalle", lang))
+                continue
+
+            df_dia = agenda_df[agenda_df['fecha'] == dia].reset_index(drop=True)
+
+            # Una fila de columnas NUEVA por cada grupo de 4 horas: así las
+            # celdas de una misma fila son hermanas en el mismo contenedor
+            # flex y se alinean de verdad.
+            for fila_inicio in range(0, len(df_dia), SLOTS_POR_FILA):
+                fila_slots = df_dia.iloc[fila_inicio:fila_inicio + SLOTS_POR_FILA]
+                row_cols = st.columns(SLOTS_POR_FILA)
+
+                for col_idx, (_, slot) in enumerate(fila_slots.iterrows()):
+                    hora = slot['hora_str']
+                    estado = slot['estado_base']
+                    riesgo_titular = slot['riesgo_titular']
+                    condicion_overbooking = (riesgo_titular >= umbral_ia) or (riesgo_paciente >= umbral_ia)
+
+                    with row_cols[col_idx]:
+                        if estado == "Libre":
+                            st.markdown(
+                                f'<div class="slot-card"><b>{hora}</b><br>{t("agenda_slot_free", lang)}</div>',
+                                unsafe_allow_html=True,
+                            )
+                            if st.button(t("agenda_reserve_button", lang), key=f"{key_prefix}_btn_{dia}_{hora}", use_container_width=True):
+                                st.session_state[confirmacion_key] = {"dia": dia, "hora": hora, "ai": False}
+                                st.rerun()
+
+                        elif estado == "Ocupado" and condicion_overbooking:
+                            st.markdown(
+                                f'<div class="slot-overbooking"><b>{hora}</b><br>{t("agenda_slot_smartslot", lang)}</div>',
+                                unsafe_allow_html=True,
+                            )
+                            if st.button(t("agenda_reserve_button", lang), key=f"{key_prefix}_ob_{dia}_{hora}", use_container_width=True):
+                                st.session_state[confirmacion_key] = {"dia": dia, "hora": hora, "ai": True}
+                                st.rerun()
+
+                        else:  # Ocupado, sin overbooking
+                            st.markdown(
+                                f'<div class="slot-full"><b>{hora}</b><br>{t("agenda_slot_occupied", lang)}</div>',
+                                unsafe_allow_html=True,
+                            )
+                            st.button(
+                                t("agenda_unavailable_button", lang),
+                                key=f"{key_prefix}_na_{dia}_{hora}", use_container_width=True, disabled=True,
+                            )
+
+
 def render_agenda_tab() -> None:
     """Renders the full appointment-booking portal: CSS, patient login,
     the smart-overbooking agenda grid and the admin sidebar panel. Does
@@ -403,8 +526,9 @@ def render_agenda_tab() -> None:
 
             umbral_ia = st.slider(
                 t("agenda_admin_threshold_label", lang),
-                min_value=0.10, max_value=0.90, value=0.60, step=0.05,
-                help=t("agenda_admin_threshold_help", lang)
+                min_value=0.10, max_value=0.90, value=UMBRAL_IA_DEFECTO, step=0.05,
+                help=t("agenda_admin_threshold_help", lang),
+                key=_UMBRAL_IA_STATE_KEY,
             )
 
             st.divider()
@@ -473,76 +597,10 @@ ID: 555 (Aitor  - Riesgo: 5%)""")
                 # módulo). Limitación consciente: es una única variable de
                 # sesión global, no por paciente — ver la nota en triaje.py.
                 nivel_triaje = st.session_state.get("triaje_nivel")
-
-                if nivel_triaje == "urgente":
-                    st.error(t("agenda_triaje_urgente_bloqueo", lang))
-                else:
-                    if nivel_triaje == "prioritario":
-                        st.warning(t("agenda_triaje_prioritario_aviso", lang))
-
-                    st.markdown(t("agenda_select_date_heading", lang))
-
-                    dias_unicos = agenda_df['fecha'].unique()
-                    SLOTS_POR_FILA = 4  # 4 columnas -> cuadrícula ordenada por hora
-
-                    for idx_dia, dia in enumerate(dias_unicos):
-                        # Con nivel "prioritario", solo el primer día
-                        # disponible se puede reservar; el resto se muestran
-                        # bloqueados hasta que ese hueco urgente quede
-                        # cubierto.
-                        dia_bloqueado = (nivel_triaje == "prioritario" and idx_dia > 0)
-                        titulo_dia = f"📅 {dia}"
-                        if dia_bloqueado:
-                            titulo_dia += f" — {t('agenda_triaje_dia_bloqueado', lang)}"
-
-                        with st.expander(titulo_dia, expanded=(dia == dias_unicos[0])):
-                            if dia_bloqueado:
-                                st.caption(t("agenda_triaje_dia_bloqueado_detalle", lang))
-                                continue
-
-                            df_dia = agenda_df[agenda_df['fecha'] == dia].reset_index(drop=True)
-
-                            # Una fila de columnas NUEVA por cada grupo de 4 horas:
-                            # así las celdas de una misma fila son hermanas en el
-                            # mismo contenedor flex y se alinean de verdad.
-                            for fila_inicio in range(0, len(df_dia), SLOTS_POR_FILA):
-                                fila_slots = df_dia.iloc[fila_inicio:fila_inicio + SLOTS_POR_FILA]
-                                row_cols = st.columns(SLOTS_POR_FILA)
-
-                                for col_idx, (_, slot) in enumerate(fila_slots.iterrows()):
-                                    hora = slot['hora_str']
-                                    estado = slot['estado_base']
-                                    riesgo_titular = slot['riesgo_titular']
-                                    condicion_overbooking = (riesgo_titular >= umbral_ia) or (riesgo_paciente >= umbral_ia)
-
-                                    with row_cols[col_idx]:
-                                        if estado == "Libre":
-                                            st.markdown(
-                                                f'<div class="slot-card"><b>{hora}</b><br>{t("agenda_slot_free", lang)}</div>',
-                                                unsafe_allow_html=True,
-                                            )
-                                            if st.button(t("agenda_reserve_button", lang), key=f"btn_{dia}_{hora}", use_container_width=True):
-                                                st.session_state.cita_confirmada = {"dia": dia, "hora": hora, "ai": False}
-                                                st.rerun()
-
-                                        elif estado == "Ocupado" and condicion_overbooking:
-                                            st.markdown(
-                                                f'<div class="slot-overbooking"><b>{hora}</b><br>{t("agenda_slot_smartslot", lang)}</div>',
-                                                unsafe_allow_html=True,
-                                            )
-                                            if st.button(t("agenda_reserve_button", lang), key=f"ob_{dia}_{hora}", use_container_width=True):
-                                                st.session_state.cita_confirmada = {"dia": dia, "hora": hora, "ai": True}
-                                                st.rerun()
-
-                                        else:  # Ocupado, sin overbooking
-                                            st.markdown(
-                                                f'<div class="slot-full"><b>{hora}</b><br>{t("agenda_slot_occupied", lang)}</div>',
-                                                unsafe_allow_html=True,
-                                            )
-                                            st.button(
-                                                t("agenda_unavailable_button", lang),
-                                                key=f"na_{dia}_{hora}", use_container_width=True, disabled=True,
-                                            )
+                render_dia_selector(
+                    agenda_df, lang, umbral_ia, riesgo_paciente, nivel_triaje,
+                    key_prefix="ag",
+                )
 
             elif st.session_state.cita_confirmada:
                 cita = st.session_state.cita_confirmada
