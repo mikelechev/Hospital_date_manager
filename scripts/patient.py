@@ -21,6 +21,7 @@ La solución real es doble:
     un botón deshabilitado "No disponible" del mismo tamaño.
 """
 
+import json
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -244,55 +245,55 @@ def inject_css() -> None:
     }}
 
     /* ---------- PANEL PACIENTE (izquierda, blanco) ---------- */
-    .st-key-patient_panel , .st-key-triaje_panel {{
+    .st-key-patient_panel , .st-key-medico_panel , .st-key-triaje_panel {{
         background-color: {COLOR_PATIENT_BG};
         border: 1px solid {COLOR_PATIENT_BORDER};
         border-radius: 16px;
         padding: 2.25rem 2.5rem;
         box-shadow: 0px 12px 32px rgba(17, 24, 39, 0.06);
     }}
-    .st-key-patient_panel p, .st-key-triaje_panel p,
-    .st-key-patient_panel span, .st-key-triaje_panel span,
-    .st-key-patient_panel label , .st-key-triaje_panel label {{
+    .st-key-patient_panel p, .st-key-medico_panel p, .st-key-triaje_panel p,
+    .st-key-patient_panel span, .st-key-medico_panel span, .st-key-triaje_panel span,
+    .st-key-patient_panel label , .st-key-medico_panel label , .st-key-triaje_panel label {{
         color: {COLOR_PATIENT_TEXT};
     }}
-    .st-key-patient_panel h1, .st-key-triaje_panel h1,
-    .st-key-patient_panel h2, .st-key-triaje_panel h2,
-    .st-key-patient_panel h3 , .st-key-triaje_panel h3 {{
+    .st-key-patient_panel h1, .st-key-medico_panel h1, .st-key-triaje_panel h1,
+    .st-key-patient_panel h2, .st-key-medico_panel h2, .st-key-triaje_panel h2,
+    .st-key-patient_panel h3 , .st-key-medico_panel h3 , .st-key-triaje_panel h3 {{
         color: {COLOR_PATIENT_TEXT};
         letter-spacing: -0.01em;
     }}
-    .st-key-patient_panel [data-testid="stCaptionContainer"] , .st-key-triaje_panel [data-testid="stCaptionContainer"] {{
+    .st-key-patient_panel [data-testid="stCaptionContainer"] , .st-key-medico_panel [data-testid="stCaptionContainer"] , .st-key-triaje_panel [data-testid="stCaptionContainer"] {{
         color: {COLOR_PATIENT_MUTED};
     }}
-    .st-key-patient_panel hr , .st-key-triaje_panel hr {{
+    .st-key-patient_panel hr , .st-key-medico_panel hr , .st-key-triaje_panel hr {{
         border-color: {COLOR_PATIENT_BORDER};
     }}
 
     /* Botones Principales (Acceder) */
-    .st-key-patient_panel button[kind="primary"], .st-key-triaje_panel button[kind="primary"],
-    .st-key-patient_panel button[kind="primaryFormSubmit"] , .st-key-triaje_panel button[kind="primaryFormSubmit"] {{
+    .st-key-patient_panel button[kind="primary"], .st-key-medico_panel button[kind="primary"], .st-key-triaje_panel button[kind="primary"],
+    .st-key-patient_panel button[kind="primaryFormSubmit"] , .st-key-medico_panel button[kind="primaryFormSubmit"] , .st-key-triaje_panel button[kind="primaryFormSubmit"] {{
         background-color: {COLOR_ACCENT_FREE} !important;
         border: 1px solid {COLOR_ACCENT_FREE} !important;
         color: #FFFFFF !important;
         border-radius: 8px;
         font-weight: 600;
     }}
-    .st-key-patient_panel button[kind="primary"]:hover, .st-key-triaje_panel button[kind="primary"]:hover,
-    .st-key-patient_panel button[kind="primaryFormSubmit"]:hover , .st-key-triaje_panel button[kind="primaryFormSubmit"]:hover {{
+    .st-key-patient_panel button[kind="primary"]:hover, .st-key-medico_panel button[kind="primary"]:hover, .st-key-triaje_panel button[kind="primary"]:hover,
+    .st-key-patient_panel button[kind="primaryFormSubmit"]:hover , .st-key-medico_panel button[kind="primaryFormSubmit"]:hover , .st-key-triaje_panel button[kind="primaryFormSubmit"]:hover {{
         background-color: #128A3E !important;
         border-color: #128A3E !important;
     }}
 
     /* Botones Secundarios (Reservar, Cerrar Sesión) */
-    .st-key-patient_panel button[kind="secondary"] , .st-key-triaje_panel button[kind="secondary"] {{
+    .st-key-patient_panel button[kind="secondary"] , .st-key-medico_panel button[kind="secondary"] , .st-key-triaje_panel button[kind="secondary"] {{
         background-color: #FFFFFF !important;
         border-radius: 8px;
         border: 1px solid #D1D5DB !important;
         color: {COLOR_PATIENT_TEXT} !important;
         font-weight: 600;
     }}
-    .st-key-patient_panel button[kind="secondary"]:hover , .st-key-triaje_panel button[kind="secondary"]:hover {{
+    .st-key-patient_panel button[kind="secondary"]:hover , .st-key-medico_panel button[kind="secondary"]:hover , .st-key-triaje_panel button[kind="secondary"]:hover {{
         background-color: #F3F4F6 !important;
         border-color: #9CA3AF !important;
         color: #111827 !important;
@@ -300,8 +301,8 @@ def inject_css() -> None:
 
     /* Botón deshabilitado "No disponible": mismo tamaño, look apagado,
        para que las tarjetas ocupadas midan igual que las reservables */
-    .st-key-patient_panel button:disabled, .st-key-triaje_panel button:disabled,
-    .st-key-patient_panel button[kind="secondary"]:disabled , .st-key-triaje_panel button[kind="secondary"]:disabled {{
+    .st-key-patient_panel button:disabled, .st-key-medico_panel button:disabled, .st-key-triaje_panel button:disabled,
+    .st-key-patient_panel button[kind="secondary"]:disabled , .st-key-medico_panel button[kind="secondary"]:disabled , .st-key-triaje_panel button[kind="secondary"]:disabled {{
         background-color: #F9FAFB !important;
         border: 1px dashed #E1E4E8 !important;
         color: #C1C6CD !important;
@@ -413,6 +414,49 @@ def inject_css() -> None:
         color: {COLOR_PATIENT_MUTED};
         line-height: 1.3;
     }}
+
+    /* ---------- Vista del médico (scripts/medico.py): filas de agenda ---------- */
+    .medico-fila {{
+        display: flex;
+        align-items: center;
+        gap: 0.9rem;
+        padding: 0.6rem 0.8rem;
+        margin-bottom: 6px;
+        border-radius: 8px;
+        border-left: 4px solid {COLOR_PATIENT_BORDER};
+        background-color: #FAFBFC;
+    }}
+    .medico-fila-urgente {{ border-left-color: #DC2626; background-color: #FEF2F2; }}
+    .medico-fila-prioritario {{ border-left-color: #EA580C; background-color: #FFF7ED; }}
+    .medico-fila-normal {{ border-left-color: {COLOR_ACCENT_FREE}; background-color: #F0FDF4; }}
+    .medico-fila-sin-triaje {{ border-left-color: #9CA3AF; background-color: #F9FAFB; }}
+    .medico-fila-simulado {{ border-left-color: #E5E7EB; background-color: #FFFFFF; opacity: 0.75; }}
+    .medico-fila-hora {{
+        font-weight: 700;
+        min-width: 3.2rem;
+        color: {COLOR_PATIENT_TEXT};
+    }}
+    .medico-fila-info {{
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+        color: {COLOR_PATIENT_TEXT};
+    }}
+    .medico-fila-info-muted {{ color: {COLOR_PATIENT_MUTED}; }}
+    .medico-badge {{
+        display: inline-block;
+        font-size: 0.76rem;
+        font-weight: 600;
+        padding: 0.12rem 0.55rem;
+        border-radius: 999px;
+    }}
+    .medico-badge-urgente {{ background-color: #FEE2E2; color: #B91C1C; }}
+    .medico-badge-prioritario {{ background-color: #FFEDD5; color: #C2410C; }}
+    .medico-badge-normal {{ background-color: #DCFCE7; color: #15803D; }}
+    .medico-badge-sin-triaje {{ background-color: #F3F4F6; color: #4B5563; }}
+    .medico-badge-overbooking {{ background-color: #EDE9FE; color: #6D28D9; }}
+    .medico-riesgo {{ font-size: 0.82rem; color: {COLOR_PATIENT_MUTED}; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -447,7 +491,7 @@ def _get_umbral_ia() -> float:
     return st.session_state.get(_UMBRAL_IA_STATE_KEY, UMBRAL_IA_DEFECTO)
 
 
-def render_admin_panel_content(lang: str) -> None:
+def render_admin_panel_content(lang: str, mostrar_control_umbral: bool = True) -> None:
     """Contenido del panel de administración/IA: eyebrow, umbral de
     overbooking (SmartSlot), IDs de la demo e info. Extraído de
     render_agenda_tab a una función propia para poder reutilizarlo tal
@@ -465,18 +509,35 @@ def render_admin_panel_content(lang: str) -> None:
     script run): render_agenda_tab usa "admin_panel", la vista de triaje
     usa "admin_panel_triaje". inject_css() ya aplica el mismo estilo a las
     dos.
+
+    `mostrar_control_umbral=False` reemplaza el slider interactivo por una
+    lectura de solo texto del umbral actual. Hace falta para
+    app_unificado.py (el portal clásico de 3 pestañas): ahí, tab_agenda Y
+    tab_triaje están montadas A LA VEZ en el mismo script run (Streamlit
+    ejecuta el cuerpo de todas las pestañas, no solo la visible), así que
+    si las dos llamaran a esta función con el slider activo, habría DOS
+    `st.slider(key=_UMBRAL_IA_STATE_KEY)` en la misma ejecución — Streamlit
+    no permite dos widgets con la misma key explícita y esto rompería el
+    portal clásico entero, no solo esta pestaña. En cambio, en
+    app_unificado_triaje.py (proceso propio, sin tab_agenda) sí hace falta
+    el slider interactivo aquí — es el único sitio de esa vista donde se
+    puede ajustar el umbral — así que el valor por defecto es True.
     """
     st.markdown(f'<span class="admin-eyebrow">{t("agenda_admin_eyebrow", lang)}</span>', unsafe_allow_html=True)
     st.markdown(t("agenda_admin_heading", lang))
     st.caption(t("agenda_admin_caption", lang))
     st.divider()
 
-    st.slider(
-        t("agenda_admin_threshold_label", lang),
-        min_value=0.10, max_value=0.90, value=UMBRAL_IA_DEFECTO, step=0.05,
-        help=t("agenda_admin_threshold_help", lang),
-        key=_UMBRAL_IA_STATE_KEY,
-    )
+    if mostrar_control_umbral:
+        st.slider(
+            t("agenda_admin_threshold_label", lang),
+            min_value=0.10, max_value=0.90, value=UMBRAL_IA_DEFECTO, step=0.05,
+            help=t("agenda_admin_threshold_help", lang),
+            key=_UMBRAL_IA_STATE_KEY,
+        )
+    else:
+        st.metric(t("agenda_admin_threshold_label", lang), f"{_get_umbral_ia() * 100:.0f}%")
+        st.caption(t("agenda_admin_threshold_readonly_note", lang))
 
     st.divider()
     st.markdown(t("agenda_admin_db_heading", lang))
@@ -488,6 +549,72 @@ ID: 333 (Jon    - Riesgo: 35%)
 ID: 444 (Maite  - Riesgo: 65%)
 ID: 555 (Aitor  - Riesgo: 5%)""")
     st.info(t("agenda_admin_info", lang))
+
+
+# --------------------------------------------------------------------------- #
+# Persistencia mínima de citas confirmadas, compartida ENTRE PROCESOS
+#
+# `st.session_state` es propio de cada proceso de Streamlit: si el portal
+# del paciente (app_unificado.py / app_unificado_triaje.py) y la vista del
+# médico (scripts/medico.py) se lanzan como comandos `streamlit run`
+# distintos — que es justo la razón por la que la vista del médico vive en
+# su propio script, ver la cabecera de scripts/medico.py —, no comparten
+# memoria entre sí. Sin esto, el médico nunca vería lo que un paciente
+# acaba de reservar en otro proceso/pestaña del navegador.
+#
+# Por eso cada reserva confirmada (dentro de render_dia_selector, más
+# abajo — el único punto por el que pasan tanto la Agenda clásica como el
+# flujo de triaje) se anota también aquí, en un fichero JSON compartido en
+# disco: la primera pieza de persistencia real del prototipo, aunque sea
+# mínima. Es justo el hueco #3 de "Cero persistencia" que señalaba
+# propuesta_mejoras_hospital_date_manager.md — resuelto aquí solo para lo
+# mínimo que necesita la demo (citas confirmadas), no para todo el estado
+# de la app. NO es una base de datos: lectura-modificación-escritura sin
+# bloqueo de fichero, así que dos reservas exactamente simultáneas desde
+# procesos distintos podrían pisarse — aceptable para una demo con un
+# puñado de reservas a la vez, no para producción real (ahí SQLite o
+# similar, como ya apunta el roadmap).
+# --------------------------------------------------------------------------- #
+_CITAS_CONFIRMADAS_PATH = _ROOT_DIR / "data" / "citas_confirmadas_demo.json"
+
+
+def registrar_cita_confirmada(
+    nombre: str, dia: str, hora: str, ai: bool, riesgo, nivel_triaje=None,
+) -> None:
+    """Añade una cita confirmada al fichero compartido para que
+    scripts/medico.py (en otro proceso) pueda enseñarla. Nunca lanza
+    excepción: un fallo aquí no debe romper la reserva que el paciente ya
+    ve confirmada en su propia pantalla, solo hace que el médico no la vea
+    hasta que se resuelva el problema de disco/permisos que sea."""
+    try:
+        citas = leer_citas_confirmadas()
+        citas.append({
+            "nombre": nombre,
+            "dia": dia,
+            "hora": hora,
+            "ai": bool(ai),
+            "riesgo": float(riesgo) if riesgo is not None else None,
+            "nivel_triaje": nivel_triaje,
+        })
+        _CITAS_CONFIRMADAS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _CITAS_CONFIRMADAS_PATH.write_text(
+            json.dumps(citas, ensure_ascii=False, indent=2), encoding="utf-8",
+        )
+    except Exception:
+        pass
+
+
+def leer_citas_confirmadas() -> list:
+    """Lee el fichero compartido de citas confirmadas. Deliberadamente SIN
+    @st.cache_data: scripts/medico.py necesita ver, tras un simple
+    st.rerun(), reservas hechas por OTRO proceso justo antes — cachear
+    aquí serviría datos obsoletos indefinidamente dentro de esa sesión."""
+    try:
+        if _CITAS_CONFIRMADAS_PATH.exists():
+            return json.loads(_CITAS_CONFIRMADAS_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    return []
 
 
 # --- ESTADOS DE SESIÓN ---
@@ -548,6 +675,7 @@ def render_dia_selector(
     key_prefix: str = "ag",
     mostrar_aviso_nivel: bool = True,
     confirmacion_key: str = "cita_confirmada",
+    nombre_paciente: str = "Paciente",
 ) -> None:
     """Cuadrícula de días/huecos con el gating de triaje aplicado.
 
@@ -576,6 +704,11 @@ def render_dia_selector(
     completo del paciente en `st.session_state.paciente_actual` — un
     paciente nuevo llegado por triaje no tiene esa ficha, y forzarla
     rompería esa pantalla.
+
+    `nombre_paciente` se usa solo para registrar la reserva en el fichero
+    compartido de citas confirmadas (ver registrar_cita_confirmada más
+    arriba), que es lo que lee scripts/medico.py para mostrar la agenda del
+    día — no afecta a nada de lo que ve el propio paciente en esta función.
     """
     if nivel_triaje == "urgente":
         st.error(t("agenda_triaje_urgente_bloqueo", lang))
@@ -624,6 +757,10 @@ def render_dia_selector(
                             )
                             if st.button(t("agenda_reserve_button", lang), key=f"{key_prefix}_btn_{dia}_{hora}", use_container_width=True):
                                 st.session_state[confirmacion_key] = {"dia": dia, "hora": hora, "ai": False}
+                                registrar_cita_confirmada(
+                                    nombre_paciente, dia, hora, ai=False,
+                                    riesgo=riesgo_paciente, nivel_triaje=nivel_triaje,
+                                )
                                 st.rerun()
 
                         elif estado == "Ocupado" and condicion_overbooking:
@@ -633,6 +770,10 @@ def render_dia_selector(
                             )
                             if st.button(t("agenda_reserve_button", lang), key=f"{key_prefix}_ob_{dia}_{hora}", use_container_width=True):
                                 st.session_state[confirmacion_key] = {"dia": dia, "hora": hora, "ai": True}
+                                registrar_cita_confirmada(
+                                    nombre_paciente, dia, hora, ai=True,
+                                    riesgo=riesgo_paciente, nivel_triaje=nivel_triaje,
+                                )
                                 st.rerun()
 
                         else:  # Ocupado, sin overbooking
@@ -726,7 +867,7 @@ def render_agenda_tab() -> None:
                 nivel_triaje = st.session_state.get("triaje_nivel")
                 render_dia_selector(
                     agenda_df, lang, umbral_ia, riesgo_paciente, nivel_triaje,
-                    key_prefix="ag",
+                    key_prefix="ag", nombre_paciente=paciente['nombre'],
                 )
 
             elif st.session_state.cita_confirmada:

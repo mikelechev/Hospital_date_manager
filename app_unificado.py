@@ -67,7 +67,12 @@ with tab_chat:
     render_chatbot_tab()
 
 with tab_triaje:
-    render_triaje_tab()
+    # mostrar_control_umbral=False: tab_agenda (más abajo) ya muestra el
+    # slider interactivo del umbral en su propio panel admin, montado en
+    # el mismo script run que este — dos sliders con la misma key
+    # explícita en la misma ejecución rompería la app (ver la nota en
+    # render_admin_panel_content, scripts/patient.py).
+    render_triaje_tab(mostrar_control_umbral=False)
 
 with tab_agenda:
     render_agenda_tab()

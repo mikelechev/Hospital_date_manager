@@ -193,6 +193,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "agenda_admin_caption": "Vista interna de riesgo y umbral de overbooking inteligente.",
         "agenda_admin_threshold_label": "Umbral de riesgo para overbooking (SmartSlot)",
         "agenda_admin_threshold_help": "Si el riesgo de no-show del titular o del paciente candidato supera este umbral, se ofrece el hueco en overbooking.",
+        "agenda_admin_threshold_readonly_note": "Este umbral se ajusta desde la pestaña Agenda — aquí solo se muestra su valor actual.",
         "agenda_admin_db_heading": "**Pacientes de demostración**",
         "agenda_admin_info": "Estos IDs son solo para la demo — inicia sesión con cualquiera de ellos en el panel de la izquierda.",
 
@@ -268,6 +269,17 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "triaje_riesgo_discapacidad_label": "Discapacidad",
         "triaje_riesgo_beca_label": "Beneficiario de ayuda social / beca",
         "triaje_riesgo_form_submit": "Continuar a la reserva",
+
+        "medico_eyebrow": "PERSONAL CLÍNICO",
+        "medico_title": "🩺 Agenda del médico",
+        "medico_caption": "Citas confirmadas de los próximos días, con el nivel de prioridad y el riesgo de no-show de cada paciente.",
+        "medico_refrescar_button": "🔄 Actualizar",
+        "medico_citas_confirmadas_contador": "{n} cita(s) confirmada(s)",
+        "medico_nivel_urgente": "Urgente",
+        "medico_nivel_prioritario": "Prioritario",
+        "medico_nivel_normal": "Normal",
+        "medico_nivel_sin_triaje": "Sin triaje previo",
+        "medico_riesgo_label": "Riesgo no-show: {pct}",
 
         "agenda_triaje_urgente_bloqueo": "⚠️ Según el triaje previo, tu situación no se gestiona por cita — llama al 112 o acude a urgencias. Esta agenda queda deshabilitada.",
         "agenda_triaje_prioritario_aviso": "El triaje previo marcó tu caso como prioritario: te recomendamos coger el hueco más próximo posible, aunque puedes elegir cualquier día.",
@@ -443,6 +455,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "agenda_admin_caption": "Arriskuaren barne-ikuspegia eta overbooking adimendunaren muga.",
         "agenda_admin_threshold_label": "Overbooking-erako (SmartSlot) arrisku-muga",
         "agenda_admin_threshold_help": "Titularraren edo paziente hautagaiaren ez-agertzeko arriskuak muga hau gainditzen badu, hutsunea overbooking gisa eskaintzen da.",
+        "agenda_admin_threshold_readonly_note": "Muga hau Agenda fitxatik doitzen da — hemen bere uneko balioa bakarrik erakusten da.",
         "agenda_admin_db_heading": "**Erakusketarako pazienteak**",
         "agenda_admin_info": "ID hauek erakustaldirako soilik dira — hasi saioa ezkerreko panelean edozeinekin.",
 
@@ -518,6 +531,17 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "triaje_riesgo_discapacidad_label": "Desgaitasuna",
         "triaje_riesgo_beca_label": "Gizarte-laguntza / beka onuraduna",
         "triaje_riesgo_form_submit": "Erreserbara jarraitu",
+
+        "medico_eyebrow": "PERTSONAL KLINIKOA",
+        "medico_title": "🩺 Medikuaren agenda",
+        "medico_caption": "Hurrengo egunetako hitzordu berretsiak, pazientearen lehentasun-maila eta ez-agertzeko arriskuarekin.",
+        "medico_refrescar_button": "🔄 Eguneratu",
+        "medico_citas_confirmadas_contador": "{n} hitzordu berretsi",
+        "medico_nivel_urgente": "Larria",
+        "medico_nivel_prioritario": "Lehentasunezkoa",
+        "medico_nivel_normal": "Normala",
+        "medico_nivel_sin_triaje": "Aurretiko triajerik gabe",
+        "medico_riesgo_label": "Ez-agertzeko arriskua: {pct}",
 
         "agenda_triaje_urgente_bloqueo": "⚠️ Aurretiko triajearen arabera, zure egoera ez da hitzordu bidez kudeatzen — deitu 112ra edo joan larrialdietara. Agenda hau desgaituta dago.",
         "agenda_triaje_prioritario_aviso": "Aurretiko triajeak zure kasua lehentasunezko gisa markatu du: gomendagarria da ahalik eta hurrengo hutsunea hartzea, nahiz eta edozein egun aukeratu dezakezun.",

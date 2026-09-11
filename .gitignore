@@ -23,6 +23,11 @@ __pycache__/
 chatbot/logs/
 chatbot/exports/
 
+# Estado de demo generado en tiempo de ejecución (citas confirmadas
+# compartidas entre procesos para la vista del médico) — no es dataset ni
+# código fuente, se regenera solo con el uso normal de la app.
+data/citas_confirmadas_demo.json
+
 # Model and data artifacts that should not be tracked if generated locally
 *.joblib
 *.pickle

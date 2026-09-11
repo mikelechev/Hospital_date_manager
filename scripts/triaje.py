@@ -277,9 +277,21 @@ def _render_como_funciona(lang: str) -> None:
     st.divider()
 
 
-def render_triaje_tab() -> None:
+def render_triaje_tab(mostrar_control_umbral: bool = True) -> None:
     """Renders the pre-booking triage tab. Does NOT call configure_page()
-    — same convention as render_chatbot_tab()/render_agenda_tab()."""
+    — same convention as render_chatbot_tab()/render_agenda_tab().
+
+    `mostrar_control_umbral=False` es para app_unificado.py (el portal
+    clásico de 3 pestañas: chat, triaje y agenda): ahí esta pestaña y la de
+    Agenda están montadas A LA VEZ en el mismo script run (Streamlit
+    ejecuta el cuerpo de todas las pestañas, no solo la visible), y las dos
+    llaman a render_admin_panel_content — si las dos mostraran el slider
+    interactivo del umbral, habría dos widgets con la misma key en la misma
+    ejecución, algo que Streamlit no permite y que rompería el portal
+    entero. Ahí se deja el control interactivo solo en la pestaña Agenda y
+    aquí se muestra de solo lectura. En app_unificado_triaje.py (proceso
+    propio, sin pestaña de Agenda) el valor por defecto (True) es el
+    correcto: es el único sitio de esa vista donde se puede ajustar."""
     lang = st.session_state.get("language", DEFAULT_LANGUAGE)
     _init_triaje_state()
 
@@ -306,7 +318,7 @@ def render_triaje_tab() -> None:
 
     with col_admin:
         with st.container(key="admin_panel_triaje"):
-            render_admin_panel_content(lang)
+            render_admin_panel_content(lang, mostrar_control_umbral=mostrar_control_umbral)
 
     with col_app:
         with st.container(key="triaje_panel"):
@@ -541,6 +553,7 @@ def _render_reserva_paso(lang: str) -> None:
                 agenda_df, lang, _get_umbral_ia(), riesgo_paciente, nivel,
                 key_prefix="tri", mostrar_aviso_nivel=False,
                 confirmacion_key="triaje_cita_confirmada",
+                nombre_paciente=nombre_paciente,
             )
 
     if st.button(t("triaje_reiniciar_button", lang)):
