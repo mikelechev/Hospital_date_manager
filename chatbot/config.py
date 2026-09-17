@@ -60,10 +60,12 @@ class PredictionConfig:
 
     Usa el mismo artefacto que el dashboard de simulación
     (scripts/app.py): models/modelo_definitivo.joblib, un
-    VotingClassifier (XGBClassifier + CatBoostClassifier +
-    LogisticRegression) calibrado con CalibratedClassifierCV —
-    reemplaza al antiguo modelo_campeon.json (XGBoost suelto), que solo
-    tenía 13 de las 19 variables que este modelo espera.
+    VotingClassifier (HistGradientBoostingClassifier +
+    RandomForestClassifier, sustitutos de scikit-learn de XGBoost/CatBoost
+    por bloqueo de red a pypi.org al entrenar) calibrado con
+    CalibratedClassifierCV/isotonic — reemplaza al antiguo
+    modelo_campeon.json (XGBoost suelto), que solo tenía 13 de las 19
+    variables que este modelo espera.
     """
     model_path: Path = BASE_DIR.parent / "models" / "modelo_definitivo.joblib"
     risk_threshold_high: float = 0.8

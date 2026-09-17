@@ -20,7 +20,9 @@ Aplicaciones:
   api         API FastAPI de reservas (src/api_2.py)              -> http://localhost:8000
   dashboard   Dashboard Streamlit de simulación (scripts/app.py)  -> http://localhost:8501
   chatbot     Chatbot de admisión (chatbot/app.py)                -> http://localhost:8501
-  portal      Portal unificado: chatbot + reservas (app_unificado.py) -> http://localhost:8501
+  portal      Portal unificado: chat + triaje + agenda (app_unificado.py) -> http://localhost:8501
+  triaje      Vista paciente, solo triaje (app_unificado_triaje.py)     -> http://localhost:8501
+  medico      Vista personal clínico (app_unificado_medico.py)         -> http://localhost:8501
 
 Simulaciones (sin UI):
   sim         Backtest histórico empírico (scripts/simulacion.py)
@@ -97,8 +99,22 @@ case "${1:-}" in
   portal)
     check_venv
     ensure_chatbot_env
-    echo "Iniciando portal unificado (chatbot + reservas en app_unificado.py)"
+    echo "Iniciando portal unificado (chat + triaje + agenda en app_unificado.py)"
     exec "$PY" -m streamlit run app_unificado.py
+    ;;
+
+  triaje)
+    check_venv
+    ensure_chatbot_env
+    echo "Iniciando vista de paciente, solo triaje (app_unificado_triaje.py)"
+    exec "$PY" -m streamlit run app_unificado_triaje.py
+    ;;
+
+  medico)
+    check_venv
+    ensure_chatbot_env
+    echo "Iniciando vista de personal clínico (app_unificado_medico.py)"
+    exec "$PY" -m streamlit run app_unificado_medico.py
     ;;
 
   sim)

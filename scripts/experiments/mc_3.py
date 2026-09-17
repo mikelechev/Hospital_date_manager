@@ -20,7 +20,10 @@ import numpy as np
 import pandas as pd
 import xgboost as xgb
 
-ROOT_DIR = Path(__file__).resolve().parents[1]
+# Movido a scripts/experiments/ (script exploratorio, no usado por
+# run.sh ni por ninguna app): un nivel mas de anidamiento respecto al
+# resto de scripts/, de ahi parents[2] en vez de parents[1].
+ROOT_DIR = Path(__file__).resolve().parents[2]
 MODELS_DIR = ROOT_DIR / "models"
 DATA_DIR = ROOT_DIR / "data"
 MODEL_PATH = MODELS_DIR / "modelo_campeon.json"
@@ -288,12 +291,12 @@ def main():
     normal_matrix = normal_summary["monthly_matrix"]
     over_matrix = over_summary["monthly_matrix"]
 
-    render_animation(normal_matrix, "Agenda mensual - Sin overbooking", ROOT_DIR / "scripts" / "mc_3_normal.gif")
-    render_animation(over_matrix, "Agenda mensual - Con overbooking", ROOT_DIR / "scripts" / "mc_3_overbooking.gif")
+    render_animation(normal_matrix, "Agenda mensual - Sin overbooking", Path(__file__).resolve().parent / "mc_3_normal.gif")
+    render_animation(over_matrix, "Agenda mensual - Con overbooking", Path(__file__).resolve().parent / "mc_3_overbooking.gif")
 
     print(f"\nAnimaciones guardadas en:")
-    print(f"- {ROOT_DIR / 'scripts' / 'mc_3_normal.gif'}")
-    print(f"- {ROOT_DIR / 'scripts' / 'mc_3_overbooking.gif'}")
+    print(f"- {Path(__file__).resolve().parent / 'mc_3_normal.gif'}")
+    print(f"- {Path(__file__).resolve().parent / 'mc_3_overbooking.gif'}")
 
     print("\nResumen comparativo final:")
     print(f"- Normal: retraso medio {normal_summary['avg_delay_minutes']:.1f} min / día")

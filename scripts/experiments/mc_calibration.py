@@ -19,12 +19,15 @@ print("🏥 INICIANDO SIMULACIÓN Y OPTIMIZACIÓN DE AGENDA HOSPITALARIA...")
 print("-" * 75)
 
 # --- CONFIGURACIÓN DE RUTAS ---
-ROOT_DIR = Path(__file__).resolve().parents[1]
+# Movido a scripts/experiments/ (script exploratorio, no usado por
+# run.sh ni por ninguna app): un nivel mas de anidamiento respecto al
+# resto de scripts/, de ahi parents[2] en vez de parents[1].
+ROOT_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT_DIR / "data"
 MODELS_DIR = ROOT_DIR / "models"
 MODEL_PATH = MODELS_DIR / "modelo_campeon.json"
 CSV_PATH = DATA_DIR / "dataset_limpio.csv"
-OUTPUT_DIR = ROOT_DIR / "scripts"
+OUTPUT_DIR = Path(__file__).resolve().parent
 
 # --- CONFIGURACIÓN DEL HOSPITAL ---
 DAYS_IN_MONTH = 30
@@ -280,11 +283,15 @@ def main():
     print("=" * 75)
 
     # 3. Guardar los gráficos finales y el trade-off
+    # Prefijo mc_calibration_ (en vez de mc_4_) para no pisar los PNG que
+    # genera scripts/experiments/mc_4.py con el mismo nombre base -- antes
+    # de moverse aquí, ambos escribían a scripts/ y el que corriera último
+    # sobreescribía los gráficos del otro en silencio.
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    save_matrix_plot(matrix_trad, "Agenda Mensual - Tradicional (Sin IA)", OUTPUT_DIR / "mc_4_matrix_normal.png")
-    save_matrix_plot(mejor_matrix, f"Agenda Mensual - Óptima IA (Umbral > {mejor_umbral})", OUTPUT_DIR / "mc_4_matrix_overbooking.png")
+    save_matrix_plot(matrix_trad, "Agenda Mensual - Tradicional (Sin IA)", OUTPUT_DIR / "mc_calibration_matrix_normal.png")
+    save_matrix_plot(mejor_matrix, f"Agenda Mensual - Óptima IA (Umbral > {mejor_umbral})", OUTPUT_DIR / "mc_calibration_matrix_overbooking.png")
     
-    plot_tradeoff_curve(lista_umbrales, lista_extra, lista_solapamientos, OUTPUT_DIR / "mc_4_tradeoff.png")
+    plot_tradeoff_curve(lista_umbrales, lista_extra, lista_solapamientos, OUTPUT_DIR / "mc_calibration_tradeoff.png")
 
     print(f"\n✅ Todos los gráficos y simulaciones se han guardado con éxito en la carpeta 'scripts'.")
 

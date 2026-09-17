@@ -22,12 +22,15 @@ print("🏥 INICIANDO SIMULACIÓN (TRIPLE ESCENARIO: FIJO vs FLEXIBLE vs IA)..."
 print("-" * 75)
 
 # --- CONFIGURACIÓN DE RUTAS ---
-ROOT_DIR = Path(__file__).resolve().parents[1]
+# Movido a scripts/experiments/ (script exploratorio, no usado por
+# run.sh ni por ninguna app): un nivel mas de anidamiento respecto al
+# resto de scripts/, de ahi parents[2] en vez de parents[1].
+ROOT_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT_DIR / "data"
 MODELS_DIR = ROOT_DIR / "models"
 MODELO_JOBLIB_PATH = MODELS_DIR / "modelo_definitivo.joblib"
 CSV_PATH = DATA_DIR / "dataset_limpio.csv"
-OUTPUT_DIR = ROOT_DIR / "scripts"
+OUTPUT_DIR = Path(__file__).resolve().parent
 
 # --- CONFIGURACIÓN DEL HOSPITAL ---
 DAYS_IN_MONTH = 30

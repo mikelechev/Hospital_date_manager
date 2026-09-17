@@ -1,0 +1,114 @@
+# E&M HealthTech
+## Memoria de candidatura — Donostia Meeting Minds, Categoría Ciudad
+
+> **Nota**: esto es un EJEMPLO/plantilla de cómo podría quedar la memoria completa, con el argumentario y los datos ya investigados. Los corchetes `[...]` marcan lo que solo tú puedes rellenar (equipo, cifras que dependen de correr tus propias simulaciones). Úsalo como referencia de tono y extensión, no como texto definitivo — recuerda el límite de 10 páginas en PDF.
+
+---
+
+### Portada
+
+- **Proyecto**: E&M HealthTech
+- **Categoría**: Ciudad — impacto social
+- **Equipo**: [Nombre 1] ([universidad, titulación]) — [Nombre 2] ([universidad, titulación]) — [Nombre 3] ([universidad, titulación])
+- **Portavoz**: [Nombre]
+- **Fecha**: [fecha de envío, antes del 11 de octubre de 2026]
+
+---
+
+### 1. Resumen ejecutivo
+
+Osakidetza pierde cerca de 2.000 citas al día en Atención Primaria por inasistencias no avisadas (2,8% del total, unas 500.000 al año), según reconoce el propio Gobierno Vasco en 2026. Las medidas que Osakidetza está desplegando este año —renovación de la web de cita previa, un canal de WhatsApp, consentimiento por SMS y un cuadro de mando centralizado— no incluyen ningún componente predictivo: tratan a todos los pacientes por igual, sin distinguir quién tiene realmente riesgo de no presentarse.
+
+E&M HealthTech cubre exactamente ese hueco: un sistema que calcula, cita a cita, la probabilidad de no-show de cada paciente mediante un modelo de machine learning entrenado sobre datos reales de citas médicas, y usa ese cálculo para decidir cuándo aplicar overbooking inteligente sin disparar el riesgo de solapamiento, priorizar y escalonar los recordatorios según el riesgo real, y dar al personal administrativo una vista de gestión con esa capa predictiva que hoy Osakidetza no tiene. El sistema existe ya como prototipo funcional —API de reservas, chatbot de admisión conversacional, portal de paciente y dashboard de simulación— con una extensión de diseño pensada específicamente para los retos de Donostia: población envejecida, bilingüismo euskera/castellano, estacionalidad turística y el caso de alto coste clínico de los tratamientos encadenados en Onkologikoa.
+
+---
+
+### 2. El problema y su contexto
+
+**Magnitud del problema en Gipuzkoa.** Según una nota oficial del Gobierno Vasco (2026), las inasistencias en Atención Primaria de Osakidetza representan el 2,8% de las citas —cerca de 2.000 al día, unas 500.000 al año sobre 17 millones de consultas—. Cada hueco perdido tiene doble coste: tiempo clínico que no se recupera y una lista de espera que no se acorta.
+
+**Qué hace hoy Osakidetza y qué le falta.** El plan 2026 anuncia una web de cita previa renovada, un canal de WhatsApp para recordatorios y cancelación, consentimiento por SMS, y un cuadro de mando centralizado para detectar centros con esperas largas. En ningún momento se menciona un modelo predictivo: la estrategia trata el recordatorio como un envío uniforme, no como una decisión basada en el riesgo individual.
+
+**El caso de mayor coste clínico: Onkologikoa.** En tratamientos encadenados (quimioterapia, radioterapia), una inasistencia no se compensa con overbooking —no se puede duplicar una sesión— y el coste de abandonar la serie es clínico, no solo de agenda. Comprobamos que no existe ningún dataset público de no-shows específico de quimioterapia (los registros de asistencia están demasiado ligados a historia clínica real para publicarse abiertamente), lo que confirma que la solución aquí no es "más overbooking" sino priorizar el contacto humano temprano con quien más riesgo de abandono tiene.
+
+**Por qué encaja en la categoría Ciudad.** No es un ejercicio académico abstracto: ataca un problema cuantificado y reconocido públicamente por la propia administración vasca, en San Sebastián, con una solución que la hoja de ruta oficial 2026 todavía no contempla.
+
+---
+
+### 3. Solución técnica
+
+El prototipo se compone de cuatro piezas que comparten un mismo modelo de riesgo:
+
+- **API de reservas** (FastAPI): gestiona una agenda de huecos y decide, para cada nueva solicitud, si la cita entra como normal, en overbooking (compartiendo hueco con otro paciente) o se rechaza por riesgo excesivo. La decisión se basa en la probabilidad conjunta de que ambos pacientes falten: se aprueba overbooking solo cuando la probabilidad de que vengan los dos es baja y la probabilidad de que venga al menos uno es alta.
+- **Chatbot de admisión**: asistente conversacional (compatible con distintos proveedores de LLM) que extrae en lenguaje natural los campos clínicos y sociodemográficos necesarios para la predicción, con carga de historial clínico y exportación de datos.
+- **Portal de paciente**: acceso mediante el número de Tarjeta Individual Sanitaria (TIS) —el mismo identificador que usa Osakidetza hoy—, con visualización de la agenda y overbooking asistido ("SmartSlot"), mostrando siempre de forma transparente cuándo una cita es fruto de overbooking.
+- **Dashboard de simulación**: simulación Monte Carlo del impacto del sistema (mapas de calor de ocupación, retorno de la inversión estimado) sobre datos históricos reales.
+
+**El modelo predictivo.** Se entrenó un modelo de clasificación (arquitectura de boosting, calibrado con calibración isotónica para que la probabilidad estimada sea fiable y no solo discriminativa) sobre un dataset de más de 11.000 citas reales con 19 variables: edad, indicadores clínicos y sociodemográficos, antecedentes de inasistencia del propio paciente, franja horaria y día de la semana, entre otras. El historial previo de no-shows del propio paciente es, según la literatura y confirmado en nuestros propios datos, el predictor más fuerte disponible.
+
+**Estado del prototipo.** [Al preparar esta memoria corregimos un bug en la API que hacía que, aunque el modelo estuviera cargado, la predicción real se descartara y se usara un valor fijo — hoy la API ya calcula el riesgo con el modelo entrenado en cada solicitud.]
+
+---
+
+### 4. Evidencia y resultados
+
+El modelo se validó con un split de test nunca visto durante el entrenamiento ni la calibración:
+
+| Métrica | Valor |
+|---|---|
+| AUC | ~0,73 |
+| Brier score (tras calibración) | 0,143 |
+| Tasa base de no-show en los datos | 20,19% |
+
+La calibración isotónica no cambia la capacidad discriminativa del modelo (el AUC mide eso, es independiente del umbral) pero sí mejora notablemente la fiabilidad de la probabilidad estimada (Brier score), que es justo lo que necesita el mecanismo de overbooking: no basta con ordenar a los pacientes por riesgo, hace falta que "70% de probabilidad de faltar" signifique realmente eso. Un AUC en este rango es consistente con lo reportado en la literatura pública sobre este mismo tipo de dataset sin acceso a historia clínica completa; con datos reales de un hospital (más variables, identidad real del paciente) el margen de mejora es amplio.
+
+[Aquí va la cifra de la simulación Monte Carlo/ROI: cuántos huecos adicionales se atenderían al año con overbooking inteligente frente al escenario sin él, según `scripts/mc_*.py` sobre el histórico de citas. Recomendación: ejecuta el script de simulación con el modelo ya corregido y cita el número resultante — es el dato más persuasivo de esta sección para un jurado.]
+
+---
+
+### 5. Impacto social y alineación con Donostia
+
+El diseño no es genérico: incorpora los rasgos reales de la población de Gipuzkoa. La población es relativamente envejecida y con menor familiaridad con apps o chats de texto —el segmento con más peso real en el no-show—, por lo que el roadmap incluye un canal de voz/IVR y modos de alto contraste. Osakidetza opera en euskera y castellano, así que el bilingüismo se plantea de serie, no como añadido futuro. La estacionalidad turística (Semana Grande, Jazzaldia, verano) satura Primaria y Urgencias con población flotante sin historial en el sistema, un reto distinto al no-show "habitual" que el modelo también puede aprender a distinguir. Donostia es además una de las ciudades más lluviosas de España, un factor con correlación conocida con el absentismo a citas que planteamos incorporar como variable del modelo. Por último, la convivencia habitual de cobertura pública (Osakidetza) y privada (IMQ, Policlínica Gipuzkoa) en Gipuzkoa abre la puerta a que el sistema, cuando la demora pública sea alta, sugiera una alternativa en la red de referencia privada.
+
+---
+
+### 6. Cumplimiento legal y ético
+
+Los datos que maneja el sistema (edad, hipertensión, diabetes, alcoholismo, discapacidad, motivo de consulta) son datos de salud, categoría especial bajo el RGPD/LOPDGDD: cualquier despliegue con datos reales exige base jurídica reforzada, consentimiento explícito, cifrado en tránsito y en reposo, y una Evaluación de Impacto (DPIA) antes de manejar historiales reales. Somos conscientes de que variables como el nivel socioeconómico o ciertos antecedentes pueden introducir sesgo si el overbooking se traduce en peor experiencia percibida para los mismos colectivos de forma sistemática, por lo que el roadmap incluye una auditoría de equidad del modelo, no solo de precisión. El propio portal de paciente ya muestra de forma visible cuándo una cita es fruto de overbooking ("SmartSlot"), un criterio de transparencia que mantenemos y documentamos para evitar percepción de trato discriminatorio.
+
+---
+
+### 7. Roadmap
+
+**Corto plazo** (antes de cualquier piloto real): persistencia real de agenda y fichas (hoy en memoria), autenticación robusta más allá del TIS de ejemplo, triaje automático de síntomas de alarma con corte de flujo hacia Urgencias, y una suite mínima de tests.
+
+**Medio plazo** (piloto demostrable ante un hospital o aseguradora): recordatorios SMS/WhatsApp conectados al riesgo individual (a mayor riesgo, aviso más temprano e insistente, por más canales), un panel de gestión real para personal administrativo, interfaz bilingüe euskera/castellano, y un pipeline de reentrenamiento continuo del modelo con los datos que el propio sistema va generando.
+
+**Largo plazo** (producto, no prototipo): interoperabilidad con historia clínica real (HL7 FHIR), canal de voz accesible para pacientes mayores, variables de contexto propias de Donostia (clima, estacionalidad turística), y una DPIA formal antes de cualquier manejo de datos reales de pacientes.
+
+---
+
+### 8. Equipo
+
+[Nombre 1] — [universidad, titulación, rol en el proyecto]
+[Nombre 2] — [universidad, titulación, rol en el proyecto]
+[Nombre 3] — [universidad, titulación, rol en el proyecto]
+[Nombre 4, si aplica]
+
+Portavoz: [Nombre]
+
+---
+
+### 9. Conclusión
+
+E&M HealthTech no propone un problema hipotético ni una solución de laboratorio: ataca una cifra real y reconocida por la propia Osakidetza —500.000 citas perdidas al año— con un prototipo que ya funciona, un modelo entrenado y validado sobre datos reales, y un roadmap que se anticipa a lo que el propio plan 2026 de Osakidetza todavía no cubre. Presentarlo en la categoría Ciudad de Donostia Meeting Minds es una oportunidad de convertir un prototipo técnico en una conversación real con quienes gestionan la sanidad en Gipuzkoa.
+
+---
+
+### Bibliografía
+
+- Osakidetza incorporará medidas para acceder más rápido y evitar inasistencias (2,8% de las citas) — Gobierno Vasco: https://www.euskadi.eus/gobierno-vasco/-/noticia/2026/osakidetza-incorporara-medidas-acceder-mas-rapido-y-forma-mas-sencilla-consulta-atencion-primera-y-evitar-asi-inasistencias-que-afectan-al-2-8-citas-cerca-2-000-al-dia/
+- OSI Donostialdea — Hospital Universitario de Donostia (Osakidetza): https://www.osakidetza.euskadi.eus/osi-donostialdea-hospital-universitario-presentacion/webosk00-donoscon/es/
+- Onkologikoa, centro de referencia del cáncer para Gipuzkoa (EITB): https://www.eitb.eus/es/noticias/sociedad/detalle/8464054/onkologikoa-de-san-sebastian-se-convierte-en-centro-de-referencia-del-cancer-para-gipuzkoa/
+- Policlínica Gipuzkoa — Grupo Quirónsalud: https://www.quironsalud.com/es/red-centros/policlinica-gipuzkoa
+- [Añadir aquí las fuentes académicas sobre modelos de no-show si se citan cifras de la sección 4 — ver `investigacion_modelos_campeon_definitivo.md` para las referencias completas.]
