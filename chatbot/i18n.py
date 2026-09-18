@@ -26,20 +26,20 @@ LLM_LANGUAGE_INSTRUCTIONS: Dict[str, str] = {
 TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "es": {
         "page_title": "Asistente de Admisión Hospitalaria",
-        "app_title": "🏥 Asistente de Admisión Hospitalaria — Chatbot",
+        "app_title": "Asistente de Admisión Hospitalaria — Chatbot",
         "app_caption": "Interfaz para conversar con el asistente y ver el estado del paciente en tiempo real.",
 
-        "sidebar_language_label": "🌐 Idioma",
+        "sidebar_language_label": "Idioma",
         "sidebar_language_help": "Cambia el idioma de la interfaz y de las respuestas del asistente.",
 
-        "sidebar_palette_label": "🎨 Paleta de color",
+        "sidebar_palette_label": "Paleta de color",
         "sidebar_palette_help": "Cambia el aspecto visual de la app al instante (no afecta a los datos del paciente).",
         "palette_clinico_azul": "🔵 Clínico Azul",
         "palette_verde_salud": "🟢 Verde Salud",
         "palette_calido_coral": "🟠 Cálido Coral",
         "palette_alto_contraste": "⚫ Alto Contraste",
 
-        "sidebar_config_header": "⚙️ Configuración del Sistema",
+        "sidebar_config_header": "Configuración del Sistema",
         "provider_config_error": "Error de configuración del proveedor LLM: {error}",
         "provider_label": "Proveedor",
         "ollama_base_url_label": "Base URL de Ollama",
@@ -57,7 +57,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "temperature_label": "Temperatura (Creatividad vs Precisión)",
         "temperature_help": "Mantenlo en 0.0 para maximizar la consistencia del JSON.",
         "max_tokens_label": "Max Tokens",
-        "discover_button": "🔎 Buscar modelos disponibles",
+        "discover_button": "Buscar modelos disponibles",
         "discover_spinner": "Buscando modelos...",
         "discover_warning": "No se pudieron listar modelos automáticamente; se usará el nombre indicado.",
         "discover_error": "Error inicializando proveedor: {error}",
@@ -65,8 +65,8 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "use_model_button": "Usar este modelo",
         "apply_config_button": "Aplicar configuración",
         "model_applied_success": "Modelo aplicado: {model}",
-        "save_credentials_expander": "💾 Guardar credenciales",
-        "clinical_history_expander": "📁 Ficha de Historial Clínico",
+        "save_credentials_expander": "Guardar credenciales",
+        "clinical_history_expander": "Ficha de Historial Clínico",
         "help_expander": "Ayuda rápida",
         "help_content": (
             "**Sugerencias de prompts:**\n"
@@ -77,7 +77,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
             "- Pega tu API key si usas Gemini / OpenAI / Claude / Groq.\n"
             "- Usa 'Buscar modelos' para detectar modelos disponibles."
         ),
-        "new_conversation_button": "🔄 Nueva Conversación",
+        "new_conversation_button": "Nueva Conversación",
 
         "save_env_button": "Guardar en chatbot/.env",
         "save_env_success": "Credenciales guardadas en {path}",
@@ -94,11 +94,11 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "load_env_enc_success": "Credenciales cargadas en la configuración de sesión",
         "decrypt_error": "Fallo al desencriptar: {error}",
 
-        "clinical_history_subheader": "📁 Ficha de Historial Clínico",
+        "clinical_history_subheader": "Ficha de Historial Clínico",
         "clinical_history_caption": "Sube o pega el historial clínico del paciente para que el asistente extraiga los datos automáticamente.",
         "clinical_history_upload_label": "Subir ficha (.txt, .pdf, .docx)",
         "clinical_history_paste_label": "...o pega el texto del historial aquí",
-        "clinical_history_process_button": "🧠 Procesar historial con el LLM",
+        "clinical_history_process_button": "Procesar historial con el LLM",
         "clinical_history_warning_empty": "Sube un archivo o pega el texto del historial primero.",
         "clinical_history_not_implemented_error": (
             "ConversationManager no implementa todavía 'process_clinical_history(texto)'. "
@@ -112,7 +112,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "clinical_history_process_error_generic": "No se pudo procesar el historial clínico. Revisa los logs para más detalle.",
         "clinical_history_success": "Historial clínico procesado y datos actualizados.",
         "clinical_history_path_pasted": "texto pegado",
-        "clinical_history_llm_error": "⚠️ Error del LLM al interpretar el historial: {error}",
+        "clinical_history_llm_error": "Error del LLM al interpretar el historial: {error}",
         "clinical_history_extracted_data_label": "Datos extraídos:",
         "upload_too_large_error": "El archivo supera el tamaño máximo permitido ({max_mb} MB).",
         "pdf_missing_lib_error": "Para leer PDFs instala 'pypdf' (pip install pypdf).",
@@ -121,18 +121,18 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "docx_read_error": "No se pudo leer el .docx: {error}",
         "unsupported_format_error": "Formato no soportado. Usa .txt, .pdf o .docx.",
 
-        "export_subheader": "📥 Exportar datos",
+        "export_subheader": "Exportar datos",
         "export_no_data_caption": "Aún no hay datos recabados para exportar.",
-        "export_download_button": "⬇️ Descargar CSV de esta ficha",
-        "export_add_history_button": "💾 Añadir al historial acumulado (CSV)",
+        "export_download_button": "Descargar CSV de esta ficha",
+        "export_add_history_button": "Añadir al historial acumulado (CSV)",
         "export_add_history_success": "Ficha añadida a {path}",
         "export_add_history_error": "No se pudo guardar en el historial acumulado: {error}",
 
-        "patient_status_subheader": "📋 Estado del Paciente",
+        "patient_status_subheader": "Estado del Paciente",
         "patient_status_empty_info": "Aún no se ha recopilado información.",
         "progress_label": "Progreso de la ficha",
         "progress_fields_count": "{completed}/{total} campos · {pct}",
-        "pending_variables_subheader": "🎯 Variables Pendientes",
+        "pending_variables_subheader": "Variables Pendientes",
         "pending_variables_done_success": "¡Información completada!",
         "no_confirmed_fields_caption": "Todavía no hay campos confirmados con datos.",
         "confidence_label": "Confianza: {pct}",
@@ -141,7 +141,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "chat_input_placeholder": "Escribe tu mensaje aquí...",
         "chat_truncate_warning": "Tu mensaje superaba los {max} caracteres; se ha truncado.",
         "chat_thinking_spinner": "El asistente está escribiendo...",
-        "chat_error_message": "⚠️ Ocurrió un error: {error}",
+        "chat_error_message": "Ocurrió un error: {error}",
 
         "patient_prediction_subheader": "Estado paciente & Predicción",
         "risk_badge_text": "Probabilidad de ausencia: {probability} — {risk_level}",
@@ -189,7 +189,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "day_sunday": "Domingo",
 
         "agenda_admin_eyebrow": "Supervisor",
-        "agenda_admin_heading": "### ⚙️ Panel de Administración",
+        "agenda_admin_heading": "### Panel de Administración",
         "agenda_admin_caption": "Vista interna de riesgo y umbral de overbooking inteligente.",
         "agenda_admin_threshold_label": "Umbral de riesgo para overbooking (SmartSlot)",
         "agenda_admin_threshold_help": "Si el riesgo de no-show del titular o del paciente candidato supera este umbral, se ofrece el hueco en overbooking.",
@@ -238,7 +238,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
 
         # --- Triaje previo a la cita (scripts/triaje.py) ---
         "triaje_eyebrow": "Triaje previo a la cita",
-        "triaje_title": "🩺 ¿Cómo te encuentras?",
+        "triaje_title": "¿Cómo te encuentras?",
         "triaje_caption": "Antes de reservar, cuéntanos brevemente cómo te sientes: así podemos priorizar tu cita si hace falta.",
         "triaje_start_button": "Empezar",
         "triaje_first_question": "Hola. Antes de ver los huecos disponibles, cuéntame: ¿cómo te encuentras hoy y qué te ha llevado a pedir cita?",
@@ -273,7 +273,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "medico_eyebrow": "PERSONAL CLÍNICO",
         "medico_title": "🩺 Agenda del médico",
         "medico_caption": "Citas confirmadas de los próximos días, con el nivel de prioridad y el riesgo de no-show de cada paciente.",
-        "medico_refrescar_button": "🔄 Actualizar",
+        "medico_refrescar_button": "Actualizar",
         "medico_citas_confirmadas_contador": "{n} cita(s) confirmada(s)",
         "medico_nivel_urgente": "Urgente",
         "medico_nivel_prioritario": "Prioritario",
@@ -288,20 +288,20 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     },
     "eu": {
         "page_title": "Ospitaleko Onarpen Laguntzailea",
-        "app_title": "🏥 Ospitaleko Onarpen Laguntzailea — Txatbota",
+        "app_title": "Ospitaleko Onarpen Laguntzailea — Txatbota",
         "app_caption": "Laguntzailearekin hitz egiteko eta pazientearen egoera denbora errealean ikusteko interfazea.",
 
-        "sidebar_language_label": "🌐 Hizkuntza",
+        "sidebar_language_label": "Hizkuntza",
         "sidebar_language_help": "Aldatu interfazearen eta laguntzailearen erantzunen hizkuntza.",
 
-        "sidebar_palette_label": "🎨 Kolore-paleta",
+        "sidebar_palette_label": "Kolore-paleta",
         "sidebar_palette_help": "Aplikazioaren itxura berehala aldatzen du (ez die eragiten pazientearen datuei).",
         "palette_clinico_azul": "🔵 Urdin Klinikoa",
         "palette_verde_salud": "🟢 Osasun Berdea",
         "palette_calido_coral": "🟠 Koral Beroa",
         "palette_alto_contraste": "⚫ Kontraste Handikoa",
 
-        "sidebar_config_header": "⚙️ Sistemaren Konfigurazioa",
+        "sidebar_config_header": "Sistemaren Konfigurazioa",
         "provider_config_error": "Errorea LLM hornitzailearen konfigurazioan: {error}",
         "provider_label": "Hornitzailea",
         "ollama_base_url_label": "Ollama-ren Base URL-a",
@@ -319,7 +319,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "temperature_label": "Tenperatura (Sormena vs Zehaztasuna)",
         "temperature_help": "Mantendu 0.0an JSONaren koherentzia maximizatzeko.",
         "max_tokens_label": "Gehienezko Token kopurua",
-        "discover_button": "🔎 Modelo eskuragarriak bilatu",
+        "discover_button": "Modelo eskuragarriak bilatu",
         "discover_spinner": "Modeloak bilatzen...",
         "discover_warning": "Ezin izan dira modeloak automatikoki zerrendatu; adierazitako izena erabiliko da.",
         "discover_error": "Errorea hornitzailea hasieratzean: {error}",
@@ -327,8 +327,8 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "use_model_button": "Erabili modelo hau",
         "apply_config_button": "Konfigurazioa aplikatu",
         "model_applied_success": "Modeloa aplikatuta: {model}",
-        "save_credentials_expander": "💾 Kredentzialak gorde",
-        "clinical_history_expander": "📁 Historial Klinikoaren Fitxa",
+        "save_credentials_expander": "Kredentzialak gorde",
+        "clinical_history_expander": "Historial Klinikoaren Fitxa",
         "help_expander": "Laguntza azkarra",
         "help_content": (
             "**Prompt iradokizunak:**\n"
@@ -339,7 +339,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
             "- Itsatsi zure API key-a Gemini / OpenAI / Claude / Groq erabiltzen baduzu.\n"
             "- Erabili 'Modeloak bilatu' modelo eskuragarriak detektatzeko."
         ),
-        "new_conversation_button": "🔄 Elkarrizketa berria",
+        "new_conversation_button": "Elkarrizketa berria",
 
         "save_env_button": "Gorde chatbot/.env fitxategian",
         "save_env_success": "Kredentzialak {path}-n gordeta",
@@ -356,11 +356,11 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "load_env_enc_success": "Kredentzialak saioaren konfigurazioan kargatuta",
         "decrypt_error": "Desenkriptatzean akatsa: {error}",
 
-        "clinical_history_subheader": "📁 Historial Klinikoaren Fitxa",
+        "clinical_history_subheader": "Historial Klinikoaren Fitxa",
         "clinical_history_caption": "Igo edo itsatsi pazientearen historial klinikoa, laguntzaileak datuak automatikoki atera ditzan.",
         "clinical_history_upload_label": "Igo fitxa (.txt, .pdf, .docx)",
         "clinical_history_paste_label": "...edo itsatsi historialaren testua hemen",
-        "clinical_history_process_button": "🧠 Prozesatu historiala LLMarekin",
+        "clinical_history_process_button": "Prozesatu historiala LLMarekin",
         "clinical_history_warning_empty": "Igo fitxategi bat edo itsatsi historialaren testua lehenengo.",
         "clinical_history_not_implemented_error": (
             "ConversationManager-ek ez du oraindik 'process_clinical_history(testua)' inplementatzen. "
@@ -374,7 +374,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "clinical_history_process_error_generic": "Ezin izan da historial klinikoa prozesatu. Begiratu erregistroak (logs) xehetasun gehiagorako.",
         "clinical_history_success": "Historial klinikoa prozesatuta eta datuak eguneratuta.",
         "clinical_history_path_pasted": "itsatsitako testua",
-        "clinical_history_llm_error": "⚠️ Errorea LLMak historiala interpretatzean: {error}",
+        "clinical_history_llm_error": "Errorea LLMak historiala interpretatzean: {error}",
         "clinical_history_extracted_data_label": "Atera diren datuak:",
         "upload_too_large_error": "Fitxategiak baimendutako gehienezko tamaina gainditzen du ({max_mb} MB).",
         "pdf_missing_lib_error": "PDFak irakurtzeko instalatu 'pypdf' (pip install pypdf).",
@@ -383,18 +383,18 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "docx_read_error": "Ezin izan da .docx-a irakurri: {error}",
         "unsupported_format_error": "Formatua ez da onartzen. Erabili .txt, .pdf edo .docx.",
 
-        "export_subheader": "📥 Datuak esportatu",
+        "export_subheader": "Datuak esportatu",
         "export_no_data_caption": "Oraindik ez dago esportatzeko bildutako daturik.",
-        "export_download_button": "⬇️ Deskargatu fitxa honen CSVa",
-        "export_add_history_button": "💾 Gehitu metatutako historialera (CSV)",
+        "export_download_button": "Deskargatu fitxa honen CSVa",
+        "export_add_history_button": "Gehitu metatutako historialera (CSV)",
         "export_add_history_success": "Fitxa {path}-ra gehituta",
         "export_add_history_error": "Ezin izan da metatutako historialean gorde: {error}",
 
-        "patient_status_subheader": "📋 Pazientearen Egoera",
+        "patient_status_subheader": "Pazientearen Egoera",
         "patient_status_empty_info": "Oraindik ez da informaziorik bildu.",
         "progress_label": "Fitxaren aurrerapena",
         "progress_fields_count": "{completed}/{total} eremu · {pct}",
-        "pending_variables_subheader": "🎯 Falta diren Aldagaiak",
+        "pending_variables_subheader": "Falta diren Aldagaiak",
         "pending_variables_done_success": "Informazioa osatuta!",
         "no_confirmed_fields_caption": "Oraindik ez dago daturekin berretsitako eremurik.",
         "confidence_label": "Konfiantza: {pct}",
@@ -403,7 +403,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "chat_input_placeholder": "Idatzi zure mezua hemen...",
         "chat_truncate_warning": "Zure mezuak {max} karaktere gainditzen zituen; moztu da.",
         "chat_thinking_spinner": "Laguntzailea idazten ari da...",
-        "chat_error_message": "⚠️ Errore bat gertatu da: {error}",
+        "chat_error_message": "Errore bat gertatu da: {error}",
 
         "patient_prediction_subheader": "Pazientearen egoera & Iragarpena",
         "risk_badge_text": "Ez agertzeko probabilitatea: {probability} — {risk_level}",
@@ -451,7 +451,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "day_sunday": "Igandea",
 
         "agenda_admin_eyebrow": "Gainbegiralea",
-        "agenda_admin_heading": "### ⚙️ Administrazio Panela",
+        "agenda_admin_heading": "### Administrazio Panela",
         "agenda_admin_caption": "Arriskuaren barne-ikuspegia eta overbooking adimendunaren muga.",
         "agenda_admin_threshold_label": "Overbooking-erako (SmartSlot) arrisku-muga",
         "agenda_admin_threshold_help": "Titularraren edo paziente hautagaiaren ez-agertzeko arriskuak muga hau gainditzen badu, hutsunea overbooking gisa eskaintzen da.",
@@ -500,7 +500,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
 
         # --- Hitzordu aurreko triajea (scripts/triaje.py) ---
         "triaje_eyebrow": "Hitzordu aurreko triajea",
-        "triaje_title": "🩺 Nola zaude?",
+        "triaje_title": "Nola zaude?",
         "triaje_caption": "Hitzordua erreserbatu aurretik, esaguzu labur nola sentitzen zaren: horrela, behar izanez gero, zure hitzordua lehenetsi ahal izango dugu.",
         "triaje_start_button": "Hasi",
         "triaje_first_question": "Kaixo. Hitzorduak ikusi aurretik, esan iezadazu: nola zaude gaur eta zerk eraman zaitu hitzordua eskatzera?",
@@ -535,7 +535,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "medico_eyebrow": "PERTSONAL KLINIKOA",
         "medico_title": "🩺 Medikuaren agenda",
         "medico_caption": "Hurrengo egunetako hitzordu berretsiak, pazientearen lehentasun-maila eta ez-agertzeko arriskuarekin.",
-        "medico_refrescar_button": "🔄 Eguneratu",
+        "medico_refrescar_button": "Eguneratu",
         "medico_citas_confirmadas_contador": "{n} hitzordu berretsi",
         "medico_nivel_urgente": "Larria",
         "medico_nivel_prioritario": "Lehentasunezkoa",

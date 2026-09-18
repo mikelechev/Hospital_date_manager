@@ -731,7 +731,7 @@ def render_dia_selector(
         # paciente a un único día concreto en vez de dejarle elegir, que es
         # justo lo contrario de lo que se pretendía con "prioritario"
         # (verle ANTES, no forzarle a una fecha fija que puede no encajarle).
-        titulo_dia = f"📅 {dia}"
+        titulo_dia = dia
 
         with st.expander(titulo_dia, expanded=(dia == dias_unicos[0])):
             df_dia = agenda_df[agenda_df['fecha'] == dia].reset_index(drop=True)

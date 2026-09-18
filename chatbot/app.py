@@ -909,23 +909,7 @@ def _render_credential_persistence(provider: str, api_key: str, base_url: str, l
 # Icono para cada campo de PatientState; la etiqueta se traduce vía i18n
 # (claves "field_<key>" en chatbot/i18n.py). Un campo que no tenga icono
 # aquí, o traducción, sigue funcionando: cae en el fallback de _field_meta().
-FIELD_ICONS: Dict[str, str] = {
-    "age": "🎂",
-    "gender_m": "🚻",
-    "hypertension": "❤️",
-    "diabetes": "🩸",
-    "alcoholism": "🍷",
-    "handicap": "♿",
-    "scholarship": "🎓",
-    "sms_received": "📩",
-    "history_no_show": "📊",
-    "citas_previas": "📋",
-    "faltas_previas": "🚫",
-    "days_between": "📅",
-    "weekend": "🗓️",
-    "time_of_day": "⏰",
-    "consultation_reason": "📝",
-}
+FIELD_ICONS: Dict[str, str] = {}
 
 _BOOLEAN_FIELDS = {
     "hypertension", "diabetes", "alcoholism", "handicap", "scholarship", "sms_received", "weekend",

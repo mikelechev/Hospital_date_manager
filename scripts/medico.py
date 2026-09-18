@@ -179,7 +179,7 @@ def render_medico_tab() -> None:
         for dia in dias_unicos:
             filas_dia = [f for f in filas if f["fecha"] == dia]
             n_confirmadas = sum(1 for f in filas_dia if f["confirmada"])
-            titulo_dia = f"📅 {dia} · {t('medico_citas_confirmadas_contador', lang, n=n_confirmadas)}"
+            titulo_dia = f"{dia} · {t('medico_citas_confirmadas_contador', lang, n=n_confirmadas)}"
             with st.expander(titulo_dia, expanded=(dia == dias_unicos[0])):
                 for fila in filas_dia:
                     _render_fila(fila, lang)

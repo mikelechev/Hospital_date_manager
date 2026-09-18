@@ -16,6 +16,42 @@ import time
 # --- CONFIGURACIÓN DE LA PÁGINA WEB ---
 st.set_page_config(page_title="Hospital AI Dashboard", layout="wide", initial_sidebar_state="expanded")
 
+# Este dashboard usa modo oscuro propio (a diferencia del resto de la app,
+# que fuerza tema claro en .streamlit/config.toml para evitar texto blanco
+# invisible sobre sus fondos claros a medida). Aquí no hay ese problema: no
+# hay CSS a medida con fondos claros, así que se restaura el look oscuro
+# clásico de Streamlit inyectando estos colores solo en esta página, sin
+# tocar .streamlit/config.toml (que debe seguir en "light" para el resto
+# de la app).
+st.markdown(
+    """
+    <style>
+    [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
+        background-color: #0e1117;
+    }
+    [data-testid="stSidebar"] {
+        background-color: #262730;
+    }
+    [data-testid="stAppViewContainer"] * , [data-testid="stSidebar"] * {
+        color: #fafafa;
+    }
+    [data-testid="stMetricValue"], [data-testid="stMetricLabel"], [data-testid="stMetricDelta"] {
+        color: #fafafa;
+    }
+    .stButton > button {
+        background-color: #262730;
+        color: #fafafa;
+        border: 1px solid #41434c;
+    }
+    .stButton > button:hover {
+        border-color: #ff4b4b;
+        color: #ff4b4b;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # --- MEMORIA (SESSION STATE) PARA CONGELAR LA SIMULACIÓN Y ANIMACIÓN ---
 if 'semilla_global' not in st.session_state:
     st.session_state.semilla_global = 42
@@ -66,7 +102,7 @@ def load_model():
         return joblib.load(MODELO_JOBLIB_PATH)
     except Exception as e:
         st.error(
-            "❌ No se pudo cargar el modelo de IA "
+            "No se pudo cargar el modelo de IA "
             f"(`{MODELO_JOBLIB_PATH.name}`): {e}\n\n"
             "Comprueba que el archivo existe en `models/` y que las "
             "versiones de scikit-learn/xgboost/catboost instaladas "
@@ -122,23 +158,23 @@ def simulate_day(agenda, descanso_fijo, total_slots, slot_minutes, umbral_riesgo
         if slot in skip_slots:
             if slot >= total_slots - 6:
                 slots_status_plan[slot] = 14
-                hover_info_plan[slot] = "📝 Bloqueo: Informes"
+                hover_info_plan[slot] = "Bloqueo: Informes"
             else:
                 slots_status_plan[slot] = 13
-                hover_info_plan[slot] = "☕ Bloqueo: Descanso Programado"
+                hover_info_plan[slot] = "Bloqueo: Descanso Programado"
         else:
             n_pacs = len(agenda[slot])
             if n_pacs == 0:
                 slots_status_plan[slot] = 10
-                hover_info_plan[slot] = "🪑 Hueco Libre (Sin citar)"
+                hover_info_plan[slot] = "Hueco Libre (Sin citar)"
             elif n_pacs == 1:
                 slots_status_plan[slot] = 11
                 p = agenda[slot][0]
-                hover_info_plan[slot] = f"👤 <b>Cita Normal</b><br>Riesgo IA del paciente: {p['prob_no_show']*100:.0f}%"
+                hover_info_plan[slot] = f"<b>Cita Normal</b><br>Riesgo IA del paciente: {p['prob_no_show']*100:.0f}%"
             else:
                 slots_status_plan[slot] = 12
                 p1, p2 = agenda[slot][0], agenda[slot][1]
-                hover_info_plan[slot] = f"🔥 <b>OVERBOOKING IA (2 Pacientes)</b><br>1️⃣ Titular (Riesgo IA): {p1['prob_no_show']*100:.0f}%<br>2️⃣ Refuerzo (Riesgo IA): {p2['prob_no_show']*100:.0f}%"
+                hover_info_plan[slot] = f"<b>OVERBOOKING IA (2 Pacientes)</b><br>Titular (Riesgo IA): {p1['prob_no_show']*100:.0f}%<br>Refuerzo (Riesgo IA): {p2['prob_no_show']*100:.0f}%"
 
         for p in agenda[slot]:
             if not p["real_no_show"]:
@@ -168,7 +204,7 @@ def simulate_day(agenda, descanso_fijo, total_slots, slot_minutes, umbral_riesgo
 
         if len(sala_de_espera) == 0 and idx_llegadas == len(pacientes_del_dia):
             slots_status_real[slot_actual] = 5
-            hover_info_real[slot_actual] = "📝 Informes (Fin de Citas)"
+            hover_info_real[slot_actual] = "Informes (Fin de Citas)"
             continue
 
         if slot_actual >= total_slots - 6: 
@@ -181,28 +217,28 @@ def simulate_day(agenda, descanso_fijo, total_slots, slot_minutes, umbral_riesgo
                 slots_status_real[slot_actual] = 2; atendidos += 1
                 diferencias_agenda.append(retraso_agenda)
                 
-                eval_ia = "✅ Acertó (Vino)" if paciente['prob_no_show'] <= umbral_riesgo else "❌ Falló (Dijo que faltaría)"
-                hover_info_real[slot_actual] = f"👤 {paciente['rol']}<br>🤖 Predicción IA: {paciente['prob_no_show']*100:.0f}% falta ({eval_ia})<br>⏳ Retraso asistencial: {int(retraso_agenda)} min"
+                eval_ia = "Acertó (Vino)" if paciente['prob_no_show'] <= umbral_riesgo else "Falló (Dijo que faltaría)"
+                hover_info_real[slot_actual] = f"{paciente['rol']}<br>Predicción IA: {paciente['prob_no_show']*100:.0f}% falta ({eval_ia})<br>Retraso asistencial: {int(retraso_agenda)} min"
             else:
                 slots_status_real[slot_actual] = 5 
-                hover_info_real[slot_actual] = "📝 Informes (Fin de turno)"
+                hover_info_real[slot_actual] = "Informes (Fin de turno)"
             continue 
 
         if descanso_fijo:
             if slot_actual in [descanso_start, descanso_start + 1]: 
                 slots_status_real[slot_actual] = 4
-                hover_info_real[slot_actual] = "☕ Descanso por Convenio"
+                hover_info_real[slot_actual] = "Descanso por Convenio"
                 continue
         else:
             if en_descanso:
                 slots_status_real[slot_actual] = 4; descansos_pendientes -= 1
-                hover_info_real[slot_actual] = "☕ Descanso Flexible"
+                hover_info_real[slot_actual] = "Descanso Flexible"
                 if descansos_pendientes == 0: en_descanso = False
                 continue
             if descansos_pendientes == 2 and slot_actual >= descanso_start - 1:
                 if len(sala_de_espera) == 0 or slot_actual >= descanso_start + 4:
                     slots_status_real[slot_actual] = 4; descansos_pendientes -= 1; en_descanso = True
-                    hover_info_real[slot_actual] = "☕ Descanso Flexible"
+                    hover_info_real[slot_actual] = "Descanso Flexible"
                     continue
                 
         if len(sala_de_espera) > 0:
@@ -215,27 +251,27 @@ def simulate_day(agenda, descanso_fijo, total_slots, slot_minutes, umbral_riesgo
             
             llegada_relativa = paciente['minuto_llegada'] - paciente['minuto_citado']
             txt_llegada = f"{int(llegada_relativa)} min" if llegada_relativa < 0 else f"+{int(llegada_relativa)} min"
-            eval_ia = "✅ Acertó (Vino)" if paciente['prob_no_show'] <= umbral_riesgo else "❌ Falló (Dijo que faltaría)"
+            eval_ia = "Acertó (Vino)" if paciente['prob_no_show'] <= umbral_riesgo else "Falló (Dijo que faltaría)"
 
-            base_texto = f"👤 <b>{paciente['rol']}</b><br>🤖 Riesgo IA evaluado: {paciente['prob_no_show']*100:.0f}% ({eval_ia})<br>🚶 Llegada a sala: {txt_llegada} respecto a cita"
+            base_texto = f"<b>{paciente['rol']}</b><br>Riesgo IA evaluado: {paciente['prob_no_show']*100:.0f}% ({eval_ia})<br>Llegada a sala: {txt_llegada} respecto a cita"
             
             if retraso_agenda < 0:
                 slots_status_real[slot_actual] = 6 
-                hover_info_real[slot_actual] = f"{base_texto}<br>🚀 Entra adelantado: {int(abs(retraso_agenda))} min"
+                hover_info_real[slot_actual] = f"{base_texto}<br>Entra adelantado: {int(abs(retraso_agenda))} min"
             else:
                 max_retraso_dia = max(max_retraso_dia, retraso_agenda)
                 slots_status_real[slot_actual] = 1 if retraso_agenda < 5 else 2 
                 estado_txt = "Puntual" if retraso_agenda < 5 else f"Retraso de {int(retraso_agenda)} min"
-                hover_info_real[slot_actual] = f"{base_texto}<br>⏳ Atención: {estado_txt}"
+                hover_info_real[slot_actual] = f"{base_texto}<br>Atención: {estado_txt}"
         else:
             if len(agenda[slot_actual]) > 0:
                 slots_status_real[slot_actual] = 0 
                 titular = agenda[slot_actual][0]
-                eval_ia = "✅ IA Acertó (Previó la falta)" if titular['prob_no_show'] > umbral_riesgo else "❌ IA Falló (No lo vio venir)"
-                hover_info_real[slot_actual] = f"👻 <b>Faltó a la cita</b><br>🤖 Riesgo IA evaluado: {titular['prob_no_show']*100:.0f}%<br>Resultado: {eval_ia}"
+                eval_ia = "IA Acertó (Previó la falta)" if titular['prob_no_show'] > umbral_riesgo else "IA Falló (No lo vio venir)"
+                hover_info_real[slot_actual] = f"<b>Faltó a la cita</b><br>Riesgo IA evaluado: {titular['prob_no_show']*100:.0f}%<br>Resultado: {eval_ia}"
             else:
                 slots_status_real[slot_actual] = 3 
-                hover_info_real[slot_actual] = "🪑 Hueco Vacío"
+                hover_info_real[slot_actual] = "Hueco Vacío"
 
     return slots_status_real, atendidos, max_retraso_dia, sala_history, hover_info_real, diferencias_agenda, slots_status_plan, hover_info_plan
 
@@ -248,9 +284,9 @@ def main():
         modelo = load_model()
 
     # --- BARRA LATERAL ---
-    st.sidebar.header("🎛️ Parámetros de Simulación")
+    st.sidebar.header("Parámetros de Simulación")
     
-    if st.sidebar.button("🎲 Generar Nuevo Mes", use_container_width=True):
+    if st.sidebar.button("Generar Nuevo Mes", use_container_width=True):
         st.session_state.semilla_global += 1
 
     st.sidebar.divider()
@@ -260,8 +296,8 @@ def main():
     if "IA" in modo:
         umbral = st.sidebar.slider("Umbral de Riesgo de IA", min_value=0.10, max_value=0.90, value=0.40, step=0.05)
 
-    with st.sidebar.expander("⚙️ Ajustes del Sistema"):
-        st.markdown("⚠️ *Parámetros operativos y Financieros*")
+    with st.sidebar.expander("Ajustes del Sistema"):
+        st.markdown("*Parámetros operativos y Financieros*")
         n_pac_dia = st.number_input("Número de pacientes / día", value=60)
         slot_mins = st.number_input("Minutos por slot", value=10)
         descanso_start = st.number_input("Slot inicio descanso", value=12)
@@ -325,7 +361,7 @@ def main():
     col_heatmap, col_stats = st.columns([7, 3]) 
     
     with col_heatmap:
-        tipo_vista = st.radio("👁️ Alternar Vista del Mapa", ["Resultados Reales (Asistencia)", "Agenda Programada (Capa IA)"], horizontal=True)
+        tipo_vista = st.radio("Alternar Vista del Mapa", ["Resultados Reales (Asistencia)", "Agenda Programada (Capa IA)"], horizontal=True)
         heatmap_placeholder = st.empty() 
 
     # --- BUCLE DE SIMULACIÓN ANIMADO ---
@@ -355,10 +391,10 @@ def main():
             dias_ganados = delta_atendidos / media_diaria_base if media_diaria_base > 0 else 0
             ahorro_euros = delta_atendidos * (slot_mins / 60.0) * coste_hora
 
-            kpi_atendidos.metric("👥 Total Pacientes Atendidos", f"{stats_atendidos}", delta=f"{delta_atendidos} extra vs Realidad")
-            kpi_retraso.metric("⏱️ Peor Retraso del Mes", f"{stats_max_retraso:.1f} min", delta=f"{delta_retraso:.1f} min vs Realidad" if delta_retraso != 0 else None, delta_color="inverse")
-            kpi_roi_dias.metric("⏳ ROI: Tiempo Médico", f"+{dias_ganados:.1f} días", delta="Días de trabajo ahorrados")
-            kpi_roi_dinero.metric("💰 ROI: Impacto Económico", f"+{ahorro_euros:,.0f} €", delta=f"Cálculo base: {coste_hora}€/h")
+            kpi_atendidos.metric("Total Pacientes Atendidos", f"{stats_atendidos}", delta=f"{delta_atendidos} extra vs Realidad")
+            kpi_retraso.metric("Peor Retraso del Mes", f"{stats_max_retraso:.1f} min", delta=f"{delta_retraso:.1f} min vs Realidad" if delta_retraso != 0 else None, delta_color="inverse")
+            kpi_roi_dias.metric("ROI: Tiempo Médico", f"+{dias_ganados:.1f} días", delta="Días de trabajo ahorrados")
+            kpi_roi_dinero.metric("ROI: Impacto Económico", f"+{ahorro_euros:,.0f} €", delta=f"Cálculo base: {coste_hora}€/h")
 
             if "Reales" in tipo_vista:
                 matriz_a_dibujar = month_matrix_real
@@ -397,17 +433,17 @@ def main():
             fig_heat.update_layout(xaxis=dict(tickmode='array', tickvals=list(range(TOTAL_SLOTS)), ticktext=labels_x, tickangle=-90), yaxis=dict(tickmode='array', tickvals=list(range(dias_a_simular)), ticktext=labels_y, autorange="reversed"), plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", height=850, margin=dict(l=0, r=0, t=10, b=0))
             
             if animar:
-                heatmap_placeholder.plotly_chart(fig_heat, use_container_width=True)
+                heatmap_placeholder.plotly_chart(fig_heat, use_container_width=True, key="heatmap_chart")
                 if velocidad > 0:
                     time.sleep(velocidad)
 
     # Lanzamos el mapa completado rápido si no había que animar
     if not animar:
-        heatmap_placeholder.plotly_chart(fig_heat, use_container_width=True)
+        heatmap_placeholder.plotly_chart(fig_heat, use_container_width=True, key="heatmap_chart")
 
     # --- GRÁFICAS DE LA DERECHA ---
     with col_stats:
-        st.subheader("📈 Telemetría Clínica")
+        st.subheader("Telemetría Clínica")
         
         # 1. Gráfica Radar IA
         fig_hist = go.Figure()
