@@ -2,7 +2,14 @@
 
 Prototipo de optimización de citas hospitalarias: combina un flujo de admisión conversacional con IA, agendamiento tradicional y una lógica de "overbooking" (sobreventa) inteligente basada en el riesgo de que el paciente falte.
 
-El repo tiene **cuatro aplicaciones independientes** (no dependen entre sí, puedes levantar solo la que te interese) más scripts de simulación. Todas se ejecutan desde la raíz del proyecto (`Hospital_date_manager/`).
+El repo tiene **seis puntos de entrada** (no dependen entre sí, puedes levantar solo el que te interese) más scripts de simulación. Todas se ejecutan desde la raíz del proyecto (`Hospital_date_manager/`):
+
+1. API de reservas (`src/api_2.py`) — backend standalone, sin UI.
+2. Dashboard de simulación (`scripts/app.py`) — Monte Carlo + ROI para gerencia.
+3. Chatbot de admisión (`chatbot/app.py`) — intake conversacional aislado.
+4. Portal unificado del paciente (`app_unificado.py`) — chat + triaje + agenda en tres pestañas.
+5. Vista de paciente solo-triaje (`app_unificado_triaje.py`) — flujo corto TIS → triaje → reserva.
+6. Vista de personal clínico (`app_unificado_medico.py`) — agenda del médico, prioridad por riesgo.
 
 ## 0. Instalación (una sola vez)
 
@@ -37,7 +44,7 @@ source .venv/bin/activate
 - Hueco con 1 paciente → permite un **segundo paciente (overbooking)** solo si `prob_ambos_vienen < 0.25` **y** `prob_al_menos_uno_venga > 0.8`.
 - Hueco con 2 pacientes → rechaza (saturado).
 
-La probabilidad de ausencia sale del modelo XGBoost `models/modelo_campeon.json` (ya incluido en el repo) o, si faltara, de una fórmula de respaldo basada en edad y días de antelación.
+La probabilidad de ausencia sale del mismo modelo que usan el dashboard, el chatbot y el portal de paciente — `models/modelo_definitivo.joblib`, un `VotingClassifier` calibrado (ver sección 2) — o, si faltara, de una fórmula de respaldo basada en edad y días de antelación. Antes usaba su propia copia de un XGBoost suelto sin calibrar (`models/modelo_campeon.json`, todavía en el repo y usado por `scripts/mc.py`/`scripts/simulacion.py`); se unificó para que un mismo paciente no reciba un riesgo distinto según qué interfaz lo evalúe.
 
 **Cómo correrla:**
 
@@ -85,11 +92,11 @@ curl -X POST http://localhost:8000/api/evaluar-y-reservar \
 
 **Qué hace:** simulador Monte Carlo que compara tres estrategias de agendamiento a lo largo de varios días (tradicional fijo, tradicional flexible, IA con overbooking inteligente), con mapas de calor animados y gráficas de riesgo/ROI usando `data/dataset_limpio.csv`.
 
-Usa `models/modelo_definitivo.joblib`: un `VotingClassifier` (`XGBClassifier` + `CatBoostClassifier` + `LogisticRegression`, calibrado con `CalibratedClassifierCV`), entrenado sobre `data/dataset_limpio.csv` con 19 variables (edad, comorbilidades, día/mes de cita y de programación, historial de faltas...).
+Usa `models/modelo_definitivo.joblib`: un `VotingClassifier` (`HistGradientBoostingClassifier` + `RandomForestClassifier`, calibrado con `CalibratedClassifierCV`/isotonic), entrenado sobre `data/dataset_limpio.csv` con 19 variables (edad, comorbilidades, día/mes de cita y de programación, historial de faltas...). HistGradientBoosting/RandomForest son sustitutos de scikit-learn de XGBoost/CatBoost, usados porque pypi.org estaba bloqueado por política de red al entrenar — no es la arquitectura que describía alguna documentación antigua del proyecto (ni CatBoost ni Regresión Logística están presentes; confirmado cargando el pickle real).
 
-**⚠️ No está versionado en git** (`.gitignore` excluye `*.joblib` por ser un binario pesado). Si clonas el repo desde cero, tienes que generarlo o copiarlo a mano en `models/modelo_definitivo.joblib` antes de arrancar el dashboard o el chatbot; si falta, el dashboard no arranca y el chatbot cae automáticamente a su estimación heurística de respaldo.
+**Ahora sí está versionado en git** (`.gitignore` tiene una excepción explícita para `models/modelo_definitivo.joblib` y `models/voting_clf.joblib`, pese a la regla general que ignora `*.joblib`). Si aun así falta al clonar, hay que copiarlo a mano en `models/modelo_definitivo.joblib` antes de arrancar el dashboard, el chatbot o el portal de paciente; si falta, el dashboard no arranca y el chatbot/portal caen a su estimación heurística/aleatoria de respaldo.
 
-**Sobre la versión de scikit-learn:** este modelo no usa `HistGradientBoostingClassifier` ni `GradientBoostingClassifier` (las clases internas de scikit-learn cuyo módulo `_loss` se reorganizó entre 1.8 y 1.9 y rompía la carga del pickle en versiones distintas), así que en principio no necesita un pin exacto a 1.8.0. Antes de confiar en esto del todo, comprueba en tu venv (que ya tiene 1.9.x): `python -c "import joblib; joblib.load('models/modelo_definitivo.joblib')"` — si carga sin error, este aviso puede borrarse del todo.
+**Sobre la versión de scikit-learn:** este modelo SÍ usa `HistGradientBoostingClassifier`, la clase interna de scikit-learn cuyo módulo `_loss` se reorganizó entre 1.8 y 1.9 y rompe la carga del pickle en 1.9.x (`ModuleNotFoundError: '_loss'`). `requirements.txt` fija `scikit-learn==1.8.0` por esto — no quitar ese pin sin regenerar el modelo.
 
 **Cómo correrlo:**
 
@@ -160,9 +167,9 @@ GROQ_API_KEY=...               # gratis en console.groq.com (tier gratuito: ~30 
 
 ## 4. Portal Unificado del Paciente — `app_unificado.py`
 
-**Qué hace:** combina el chatbot (`chatbot/app.py`) y el portal de reservas (`scripts/patient.py`) en una sola app de Streamlit con dos pestañas, para que el paciente chatee con el asistente de admisión y reserve un turno sin cambiar de puerto/app.
+**Qué hace:** combina el chatbot (`chatbot/app.py`), el triaje previo a la cita (`scripts/triaje.py`) y el portal de reservas (`scripts/patient.py`) en una sola app de Streamlit con **tres pestañas** (chat, triaje, agenda), para que el paciente chatee con el asistente de admisión, se triaje y reserve un turno sin cambiar de puerto/app.
 
-No duplica lógica: ambos scripts originales fueron refactorizados para exponer `configure_page()` y `render_chatbot_tab()` / `render_agenda_tab()`; `app_unificado.py` configura la página una vez y llama a ambas funciones dentro de `st.tabs(...)`. Los scripts originales siguen funcionando igual por separado.
+No duplica lógica: los tres módulos exponen `render_*_tab()` (`render_chatbot_tab`, `render_triaje_tab`, `render_agenda_tab`); `app_unificado.py` configura la página una vez y llama a las tres dentro de `st.tabs(...)`. Los scripts originales siguen funcionando igual por separado.
 
 **Cómo correrlo:**
 
@@ -180,6 +187,32 @@ Se abre en `http://localhost:8501`.
 
 ---
 
+## 5. Vista de Paciente — Solo Triaje — `app_unificado_triaje.py`
+
+**Qué hace:** flujo corto pensado como el punto de vista real del paciente: TIS → pregunta de triaje → resultado → elegir día y hora, en una única pantalla, sin las pestañas de chat de admisión ni Agenda clásica (esas son para la demo técnica / personal). Reutiliza `render_triaje_tab()` de `scripts/triaje.py`, que a su vez reutiliza `scripts/patient.py` para la cuadrícula de horarios — vive en su propio archivo a propósito, para que un cambio aquí no rompa `app_unificado.py`.
+
+```bash
+streamlit run app_unificado_triaje.py
+```
+
+o `./run.sh triaje`. Se abre en `http://localhost:8501`.
+
+---
+
+## 6. Vista de Personal Clínico — `app_unificado_medico.py`
+
+**Qué hace:** agenda del médico — qué citas hay hoy y en los próximos días, con quién y con qué prioridad (nivel de triaje / riesgo de no-show) — para que el personal sepa a quién atender antes. Reutiliza `render_medico_tab()` de `scripts/medico.py`.
+
+Al ser un proceso de Streamlit distinto de los portales de paciente, **no comparte `st.session_state`** con ellos: ve las citas reservadas allí a través de un fichero compartido en disco (`data/citas_confirmadas_demo.json`), no en tiempo real — hay que pulsar "Actualizar" tras una reserva nueva.
+
+```bash
+streamlit run app_unificado_medico.py
+```
+
+o `./run.sh medico`. Se abre en `http://localhost:8501`.
+
+---
+
 ## Resumen rápido — todo se ejecuta con `./run.sh`
 
 `run.sh` es el único punto de entrada del proyecto: crea el entorno virtual, instala dependencias y arranca cualquier app o simulación. (El antiguo `chatbot/run.sh`, que creaba su propio entorno virtual duplicado dentro de `chatbot/`, se eliminó — todo pasa ahora por este script.)
@@ -188,9 +221,11 @@ Se abre en `http://localhost:8501`.
 |---|---|---|---|
 | `./run.sh setup` | Crea `.venv`, instala todas las dependencias y genera `chatbot/.env` si no existe | — | — |
 | `./run.sh api` | API FastAPI de reservas (`src/api_2.py`) | 8000 | ✅ Nada extra (modelo ya incluido) |
-| `./run.sh dashboard` | Dashboard de simulación (`scripts/app.py`) | 8501 | ❌ Falta `models/modelo_definitivo.joblib` (no va en git, ver sección 2) |
+| `./run.sh dashboard` | Dashboard de simulación (`scripts/app.py`) | 8501 | ✅ Nada extra (`models/modelo_definitivo.joblib` ya va en git, ver sección 2) |
 | `./run.sh chatbot` | Chatbot de admisión (`chatbot/app.py`) | 8501 | ✅ Nada extra (Ollama local ya configurado) |
-| `./run.sh portal` | Portal unificado: chatbot + reservas (`app_unificado.py`) | 8501 | ✅ Igual que el chatbot |
+| `./run.sh portal` | Portal unificado: chat + triaje + agenda (`app_unificado.py`) | 8501 | ✅ Igual que el chatbot |
+| `./run.sh triaje` | Vista paciente, solo triaje (`app_unificado_triaje.py`) | 8501 | ✅ Igual que el chatbot |
+| `./run.sh medico` | Vista personal clínico (`app_unificado_medico.py`) | 8501 | ✅ Igual que el chatbot |
 | `./run.sh sim` | Backtest histórico empírico (`scripts/simulacion.py`) | — | ✅ |
 | `./run.sh mc` | Monte Carlo, modelo crudo (`scripts/mc.py`) | — | ✅ |
 | `./run.sh mc2` | Monte Carlo con calibración isotónica (`scripts/mc_2.py`) | — | ✅ |
@@ -206,43 +241,49 @@ Se abre en `http://localhost:8501`.
 
 | Ruta | Propósito |
 |---|---|
-| `app_unificado.py` | Portal unificado: chatbot + reservas en dos pestañas. |
+| `app_unificado.py` | Portal unificado: chat + triaje + agenda en tres pestañas. |
+| `app_unificado_triaje.py` | Vista paciente, solo triaje (sin pestañas de chat/agenda clásica). |
+| `app_unificado_medico.py` | Vista de personal clínico: agenda priorizada por riesgo. |
 | `scripts/app.py` | Dashboard de simulación y overbooking inteligente. |
 | `scripts/patient.py` | Portal de paciente: login TIS, grilla de citas, overbooking asistido por IA. |
+| `scripts/triaje.py` | Triaje previo a la cita; reutiliza `scripts/patient.py` para la reserva. |
+| `scripts/medico.py` | Agenda del médico, leída del fichero de citas confirmadas compartido. |
+| `scripts/experiments/` | Scripts de simulación exploratorios/uno-off (`mc_3.py`, `mc_4.py`, `mc_4_animado.py`, `mc_calibration.py`) y sus gráficos/GIFs generados — no usados por `run.sh` ni por ninguna app, archivados aquí para no ensuciar `scripts/`. |
 | `chatbot/app.py` | UI del chatbot: intake conversacional, historial clínico, exportación. |
 | `chatbot/.env.example` | Ejemplo de configuración de los proveedores LLM (Ollama, Gemini, OpenAI, Claude, Groq). |
 | `chatbot/exports/` | Exportaciones de conversaciones e historiales clínicos guardados. |
 | `chatbot/conversation/` | Estado de conversación, construcción de prompts, extracción y coordinación con el LLM. |
 | `chatbot/providers/` | Adaptadores de proveedor (Ollama, Gemini, OpenAI, Claude, Groq). |
 | `chatbot/config.py` | Configuración de runtime del chatbot y carga de entorno. |
-| `src/api_2.py` | API FastAPI: reserva de huecos, estado de agenda, predicción de riesgo con XGBoost. |
-| `scripts/simulacion.py` | Backtest histórico empírico. |
-| `scripts/mc.py` | Simulación Monte Carlo con el modelo crudo. |
+| `src/api_2.py` | API FastAPI: reserva de huecos, estado de agenda, predicción de riesgo con `modelo_definitivo.joblib` (mismo modelo que el resto del sistema). |
+| `scripts/simulacion.py` | Backtest histórico empírico (usa `modelo_campeon.json`, sin calibrar). |
+| `scripts/mc.py` | Simulación Monte Carlo con el modelo crudo (`modelo_campeon.json`). |
 | `scripts/mc_2.py` | Simulación Monte Carlo con calibración isotónica en memoria. |
 | `data/dataset_limpio.csv` | Dataset limpio usado por los scripts de simulación. |
-| `models/modelo_campeon.json` | Artefacto XGBoost (13 variables) que carga `src/api_2.py` y los scripts de `scripts/mc*.py`/`simulacion.py`. |
-| `models/modelo_definitivo.joblib` | VotingClassifier calibrado (19 variables) que cargan tanto el dashboard (`scripts/app.py`) como el chatbot (`chatbot/prediction/`). **No está en git** (excluido por `.gitignore`, hay que generarlo/copiarlo aparte). |
-| `models/voting_clf.joblib` | Artefacto de modelo alternativo. |
-| `models/calibrated_isotonic_model.joblib` | Artefacto de calibración para evaluación de modelos. |
+| `models/modelo_campeon.json` | Artefacto XGBoost suelto sin calibrar (13 variables), usado solo por `scripts/mc.py`/`scripts/simulacion.py`/`scripts/experiments/*`. |
+| `models/modelo_definitivo.joblib` | VotingClassifier (HistGradientBoosting+RandomForest) calibrado con isotonic (19 variables) — el modelo real del sistema: lo cargan el dashboard, el chatbot, `src/api_2.py` y el portal de paciente/triaje. Versionado en git (excepción explícita en `.gitignore`). |
+| `models/voting_clf.joblib` | Mismo VotingClassifier que `modelo_definitivo.joblib` pero **sin** calibrar isotonic — guardado aparte para poder comparar el efecto de la calibración; ningún script lo carga automáticamente hoy. |
 
 ## Entradas de los modelos
 
-**`modelo_campeon.json`** (XGBoost — API de reservas y scripts de simulación):
+**`modelo_campeon.json`** (XGBoost suelto sin calibrar — solo `scripts/mc.py`/`scripts/simulacion.py`/`scripts/experiments/*`):
 
 `Age`, `Scholarship`, `Hipertension`, `Diabetes`, `Alcoholism`, `Handcap`, `SMS_received`, `Days_between`, `Weekend`, `Ratio_Faltas`, `Gender_M`, `Scheduled_Time_of_Day_Evening`, `Scheduled_Time_of_Day_Morning`.
 
-**`modelo_definitivo.joblib`** (VotingClassifier calibrado — dashboard y chatbot):
+**`modelo_definitivo.joblib`** (VotingClassifier calibrado — dashboard, chatbot, `src/api_2.py` y portal de paciente/triaje):
 
 `Age`, `Scholarship`, `Hipertension`, `Diabetes`, `Alcoholism`, `Handcap`, `SMS_received`, `Days_between`, `Appointment_Day_of_Week`, `Scheduled_Day_of_Week`, `Weekend`, `Appointment_Month`, `Scheduled_Month`, `Faltas_Previas`, `Citas_Previas`, `Ratio_Faltas`, `Gender_M`, `Scheduled_Time_of_Day_Evening`, `Scheduled_Time_of_Day_Morning`.
 
-En el chatbot, las variables de calendario (`Appointment_Day_of_Week`, `Scheduled_Day_of_Week`, `Appointment_Month`, `Scheduled_Month`) se derivan automáticamente de la fecha actual + "días de antelación" que da el paciente, sin preguntarlas por separado.
+En el chatbot, `src/api_2.py` y el portal de paciente, las variables de calendario (`Appointment_Day_of_Week`, `Scheduled_Day_of_Week`, `Appointment_Month`, `Scheduled_Month`) se derivan automáticamente de la fecha actual + "días de antelación" que da el paciente, sin preguntarlas por separado.
 
 Columna objetivo en ambos casos: `No-show`.
+
+**Nota de solidez (ver `Claude outputs/datos_tecnicos_completados.md`):** el punto de decisión (umbral > 0.4) solo tiene el significado de "riesgo > 40%" cuando la probabilidad viene de `modelo_definitivo.joblib` (isotonic-calibrada). Usar la probabilidad cruda de cualquiera de sus dos clasificadores por separado, sin calibrar, al mismo umbral, dispara overbooking 6-7× más de lo previsto y el P90 del tiempo de espera se dispara de +10 a +90-100 min en simulación — no usar nunca la probabilidad sin calibrar para decidir overbooking.
 
 ## Notas
 
 - El chatbot es la interfaz conversacional principal; `src/chatbot.py` es un placeholder vacío de compatibilidad.
-- El estado de sesión, agenda y extracción vive en memoria — reiniciar una app resetea el estado.
+- El estado de sesión, agenda y extracción vive en memoria — reiniciar una app resetea el estado (excepto `data/citas_confirmadas_demo.json`, el fichero compartido que permite a `app_unificado_medico.py` ver las citas creadas por los portales de paciente).
 - `api_key.txt` y `.env` están ignorados por Git y solo deben contener secretos locales.
 - Este proyecto es un prototipo, no listo para producción sin validación clínica, persistencia, autenticación y controles de privacidad reales.
 

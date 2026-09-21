@@ -33,6 +33,12 @@ data/citas_confirmadas_demo.json
 *.pickle
 *.pkl
 *.jsonl
+# Excepcion: sin estos dos .joblib el dashboard, el chatbot y el portal de
+# paciente/triaje no pueden calcular ningun riesgo real (caen a fallback
+# heuristico/aleatorio sin avisar en dos de los tres casos) -- son ~3.2MB
+# en total, pequeños de sobra para versionar sin necesitar Git LFS.
+!models/modelo_definitivo.joblib
+!models/voting_clf.joblib
 
 # OS files
 .DS_Store

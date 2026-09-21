@@ -511,7 +511,7 @@ def main():
                 fig_cdf.update_layout(title="Probabilidad Acumulada (CDF)", xaxis_title="Minutos", yaxis_title="Probabilidad (0-1)", height=160, margin=dict(l=0, r=0, t=30, b=0), plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", showlegend=False)
                 st.plotly_chart(fig_cdf, use_container_width=True)
 
-            except:
+            except Exception:
                 st.write("Calculando desviaciones...")
 
 if __name__ == "__main__":

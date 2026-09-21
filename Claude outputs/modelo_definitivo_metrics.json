@@ -1,0 +1,52 @@
+{
+  "dataset": "dataset_limpio.csv",
+  "n_rows_total": 11053,
+  "n_train": 6631,
+  "n_calib": 2211,
+  "n_test": 2211,
+  "base_rate_no_show": 0.2019,
+  "features": [
+    "Age",
+    "Scholarship",
+    "Hipertension",
+    "Diabetes",
+    "Alcoholism",
+    "Handcap",
+    "SMS_received",
+    "Days_between",
+    "Appointment_Day_of_Week",
+    "Scheduled_Day_of_Week",
+    "Weekend",
+    "Appointment_Month",
+    "Scheduled_Month",
+    "Faltas_Previas",
+    "Citas_Previas",
+    "Ratio_Faltas",
+    "Gender_M",
+    "Scheduled_Time_of_Day_Evening",
+    "Scheduled_Time_of_Day_Morning"
+  ],
+  "target": "No-show",
+  "modelo": "VotingClassifier(HistGradientBoosting, RandomForest) + CalibratedClassifierCV(isotonic)",
+  "nota": "XGBoost/CatBoost no disponibles en este entorno (pypi.org bloqueado por politica de red); sustituidos por equivalentes nativos de scikit-learn con la misma arquitectura (voting + calibracion isotonica).",
+  "resultados_test": [
+    {
+      "modelo": "VotingClassifier (sin calibrar)",
+      "AUC": 0.7357,
+      "Accuracy": 0.659,
+      "F1": 0.463,
+      "Precision": 0.3392,
+      "Recall": 0.7287,
+      "Brier": 0.1903
+    },
+    {
+      "modelo": "modelo_definitivo (calibrado isotonic)",
+      "AUC": 0.7337,
+      "Accuracy": 0.8033,
+      "F1": 0.0919,
+      "Precision": 0.6667,
+      "Recall": 0.0493,
+      "Brier": 0.143
+    }
+  ]
+}
