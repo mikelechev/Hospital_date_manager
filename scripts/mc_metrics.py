@@ -11,6 +11,18 @@ siguiendo la misma metodologia que "Claude outputs/datos_tecnicos_completados.md
 (Hallazgo #3: con pocas realizaciones el margen de error es demasiado
 grande para citar un numero suelto en la memoria).
 
+Ademas de las metricas originales (huecos recuperados, overbookings,
+contencion, delta P90, ahorro), incluye:
+  - Volumen absoluto: citados / atendidos / no-shows reales por mes.
+  - Colisiones reales del overbooking (ambos pacientes se presentan).
+  - Distribucion completa de tiempos de espera (media, mediana, P95, max,
+    % de pacientes con retraso >15 y >30 min).
+  - Precision / recall / tasa de falsos positivos / F1 del modelo en el
+    umbral usado (evaluados sobre el dataset historico completo, no sobre
+    la simulacion de agenda).
+  - Ocupacion de la agenda y una aproximacion a las horas extra del medico
+    (pacientes atendidos fuera de horario, durante el bloque de informes).
+
 Uso:
     python scripts/mc_metrics.py
     python scripts/mc_metrics.py --realizaciones 100 --umbrales 0.35 0.40
@@ -53,6 +65,8 @@ TOTAL_SLOTS = ((WORK_END_HOUR - WORK_START_HOUR) * 60) // SLOT_MINUTES
 ADMIN_SLOTS = set(range(TOTAL_SLOTS - 6, TOTAL_SLOTS))  # ultimos 6 slots: bloque de informes
 BREAK_SLOTS = {DESCANSO_START, DESCANSO_START + 1}
 SKIP_SLOTS = BREAK_SLOTS | ADMIN_SLOTS
+SLOTS_PRIMARIOS_DIA = TOTAL_SLOTS - len(SKIP_SLOTS)  # slots de cita "titular" disponibles/dia
+CAPACIDAD_PRIMARIA_MES = SLOTS_PRIMARIOS_DIA * DIAS_POR_MES
 
 # Parametros de la Johnson SU para el desfase de llegada (identicos a scripts/app.py)
 J_A, J_B, J_LOC, J_SCALE = 1.5, 1.5, -2.0, 12.0
@@ -70,6 +84,29 @@ def load_data():
 
 def load_model():
     return joblib.load(MODEL_PATH)
+
+
+def metricas_modelo(df, modelo, umbral):
+    """Precision / recall / F1 / tasa de falsos positivos del clasificador
+    sobre TODO el dataset historico, tratando 'prob_no_show > umbral' como
+    la decision de overbooking (positivo = predice no-show). Es una foto de
+    la calidad del modelo en ese umbral, independiente de la simulacion."""
+    prob = modelo.predict_proba(df[FEATURES])[:, 1]
+    pred_no_show = prob > umbral
+    real_no_show = df["Falta_Real"].to_numpy()
+
+    tp = int(np.sum(pred_no_show & real_no_show))
+    fp = int(np.sum(pred_no_show & ~real_no_show))
+    fn = int(np.sum(~pred_no_show & real_no_show))
+    tn = int(np.sum(~pred_no_show & ~real_no_show))
+
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+    fpr = fp / (fp + tn) if (fp + tn) > 0 else 0.0
+    f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) > 0 else 0.0
+
+    return {"precision": precision, "recall": recall, "fpr": fpr, "f1": f1,
+            "tp": tp, "fp": fp, "fn": fn, "tn": tn}
 
 
 def get_day_patients_pool(df, day_index, modelo, semilla):
@@ -110,7 +147,10 @@ def create_schedule(pool, overbooking, umbral):
 
 
 def simulate_day(agenda, descanso_fijo, semilla):
-    """Devuelve (atendidos, lista_de_retrasos_en_minutos) para un dia."""
+    """Devuelve (atendidos, lista_de_retrasos_en_minutos, atendidos_fuera_de_horario)
+    para un dia. 'atendidos_fuera_de_horario' cuenta pacientes vistos durante el
+    bloque de informes (ultimos 6 slots) porque la sala de espera no se vacio a
+    tiempo: es la mejor aproximacion disponible a "horas extra" del medico."""
     rng = np.random.RandomState(semilla)
     llegadas = []
     for slot in range(TOTAL_SLOTS):
@@ -129,7 +169,7 @@ def simulate_day(agenda, descanso_fijo, semilla):
                 })
     llegadas.sort(key=lambda x: x["minuto_llegada"])
 
-    sala_de_espera, idx_llegada, atendidos = [], 0, 0
+    sala_de_espera, idx_llegada, atendidos, fuera_de_horario = [], 0, 0, 0
     retrasos = []
     descansos_pendientes, en_descanso = 2, False
 
@@ -147,6 +187,7 @@ def simulate_day(agenda, descanso_fijo, semilla):
                 sala_de_espera.sort(key=lambda x: x["slot_citado"])
                 paciente = sala_de_espera.pop(0)
                 atendidos += 1
+                fuera_de_horario += 1
                 retrasos.append(minuto_actual - paciente["minuto_citado"])
             continue
 
@@ -171,24 +212,56 @@ def simulate_day(agenda, descanso_fijo, semilla):
             atendidos += 1
             retrasos.append(minuto_actual - paciente["minuto_citado"])
 
-    return atendidos, retrasos
+    return atendidos, retrasos, fuera_de_horario
 
 
 def run_month(pools, semilla, umbral=None):
-    """umbral=None -> escenario base (sin overbooking, descansos fijos)."""
+    """umbral=None -> escenario base (sin overbooking, descansos fijos).
+    Devuelve un dict con todas las metricas del mes."""
     overbooking = umbral is not None
+    total_citados = 0
     total_atendidos = 0
+    total_no_shows_reales = 0
     total_overbookings = 0
+    total_colisiones = 0
+    total_fuera_de_horario = 0
     todos_los_retrasos = []
+
     for day, pool in enumerate(pools):
         agenda = create_schedule(pool, overbooking, umbral if overbooking else 0.0)
-        if overbooking:
-            total_overbookings += sum(1 for s in agenda.values() if len(s) == 2)
-        atendidos, retrasos = simulate_day(agenda, descanso_fijo=not overbooking, semilla=day + semilla)
+        for pacientes_slot in agenda.values():
+            total_citados += len(pacientes_slot)
+            total_no_shows_reales += sum(1 for p in pacientes_slot if p["real_no_show"])
+            if overbooking and len(pacientes_slot) == 2:
+                total_overbookings += 1
+                if not pacientes_slot[0]["real_no_show"] and not pacientes_slot[1]["real_no_show"]:
+                    total_colisiones += 1
+        atendidos, retrasos, fuera_de_horario = simulate_day(
+            agenda, descanso_fijo=not overbooking, semilla=day + semilla
+        )
         total_atendidos += atendidos
+        total_fuera_de_horario += fuera_de_horario
         todos_los_retrasos.extend(retrasos)
-    p90 = float(np.percentile(todos_los_retrasos, 90)) if todos_los_retrasos else 0.0
-    return total_atendidos, total_overbookings, p90
+
+    retrasos_arr = np.asarray(todos_los_retrasos, dtype=float) if todos_los_retrasos else np.array([0.0])
+
+    return {
+        "citados": total_citados,
+        "atendidos": total_atendidos,
+        "no_shows_reales": total_no_shows_reales,
+        "pct_no_shows": (total_no_shows_reales / total_citados * 100) if total_citados > 0 else 0.0,
+        "huecos_perdidos": total_citados - total_atendidos,
+        "overbookings": total_overbookings,
+        "colisiones": total_colisiones,
+        "fuera_de_horario": total_fuera_de_horario,
+        "espera_media": float(retrasos_arr.mean()),
+        "espera_mediana": float(np.median(retrasos_arr)),
+        "espera_p90": float(np.percentile(retrasos_arr, 90)),
+        "espera_p95": float(np.percentile(retrasos_arr, 95)),
+        "espera_max": float(retrasos_arr.max()),
+        "pct_retraso_15": float(np.mean(retrasos_arr > 15) * 100),
+        "pct_retraso_30": float(np.mean(retrasos_arr > 30) * 100),
+    }
 
 
 def ci95(values):
@@ -196,6 +269,10 @@ def ci95(values):
     media = values.mean()
     error = 1.96 * values.std(ddof=1) / np.sqrt(len(values)) if len(values) > 1 else 0.0
     return media, media - error, media + error
+
+
+def fmt_ci(media, low, high, decimales=1):
+    return f"{media:.{decimales}f}  (IC95% [{low:.{decimales}f} - {high:.{decimales}f}])"
 
 
 def main():
@@ -213,47 +290,128 @@ def main():
           f"({N_PACIENTES_DIA} pacientes/dia, {DIAS_POR_MES} dias/mes, "
           f"coste medico {COSTE_HORA_MEDICO:.0f} EUR/h, slot {SLOT_MINUTES} min)...\n")
 
-    resultados = {umbral: {"extra": [], "overbookings": [], "p90_delta": []} for umbral in args.umbrales}
+    metricas_dia_keys = [
+        "citados", "atendidos", "no_shows_reales", "pct_no_shows", "huecos_perdidos",
+        "espera_media", "espera_mediana", "espera_p90", "espera_p95",
+        "espera_max", "pct_retraso_15", "pct_retraso_30",
+    ]
+    resultados_base = {k: [] for k in metricas_dia_keys}
+
+    metricas_ia_keys = metricas_dia_keys + [
+        "overbookings", "colisiones", "fuera_de_horario", "extra", "p90_delta",
+    ]
+    resultados = {umbral: {k: [] for k in metricas_ia_keys} for umbral in args.umbrales}
 
     for r in range(args.realizaciones):
         semilla = args.semilla_base + r
         pools = precompute_pools(df, modelo, semilla)
-        base_atendidos, _, base_p90 = run_month(pools, semilla, umbral=None)
+        base = run_month(pools, semilla, umbral=None)
+        for k in metricas_dia_keys:
+            resultados_base[k].append(base[k])
+
         for umbral in args.umbrales:
-            ia_atendidos, ia_overbookings, ia_p90 = run_month(pools, semilla, umbral=umbral)
-            resultados[umbral]["extra"].append(ia_atendidos - base_atendidos)
-            resultados[umbral]["overbookings"].append(ia_overbookings)
-            resultados[umbral]["p90_delta"].append(ia_p90 - base_p90)
+            ia = run_month(pools, semilla, umbral=umbral)
+            for k in metricas_dia_keys:
+                resultados[umbral][k].append(ia[k])
+            resultados[umbral]["overbookings"].append(ia["overbookings"])
+            resultados[umbral]["colisiones"].append(ia["colisiones"])
+            resultados[umbral]["fuera_de_horario"].append(ia["fuera_de_horario"])
+            resultados[umbral]["extra"].append(ia["atendidos"] - base["atendidos"])
+            resultados[umbral]["p90_delta"].append(ia["espera_p90"] - base["espera_p90"])
+
         if (r + 1) % 20 == 0 or r == args.realizaciones - 1:
             print(f"  ...{r + 1}/{args.realizaciones} meses simulados")
 
     coste_slot = (SLOT_MINUTES / 60.0) * COSTE_HORA_MEDICO
 
     print("\n" + "=" * 78)
-    print(f"RESULTADOS ({args.realizaciones} meses independientes por umbral, IC95%)")
+    print(f"ESCENARIO BASE (sin IA, {args.realizaciones} meses independientes, IC95%)")
     print("=" * 78)
+    b_atendidos, b_at_low, b_at_high = ci95(resultados_base["atendidos"])
+    b_noshows, _, _ = ci95(resultados_base["no_shows_reales"])
+    b_pct_noshows, _, _ = ci95(resultados_base["pct_no_shows"])
+    b_perdidos, b_perdidos_low, b_perdidos_high = ci95(resultados_base["huecos_perdidos"])
+    b_ocup = b_atendidos / CAPACIDAD_PRIMARIA_MES * 100
+    print(f"  Pacientes citados/mes (capacidad primaria): {CAPACIDAD_PRIMARIA_MES}")
+    print(f"  Pacientes atendidos/mes:        {fmt_ci(b_atendidos, b_at_low, b_at_high)}")
+    print(f"  No-shows reales/mes:            {b_noshows:6.1f}  ({b_pct_noshows:.1f}% de los citados)")
+    print(f"  Huecos perdidos por no-show/mes: {fmt_ci(b_perdidos, b_perdidos_low, b_perdidos_high)}")
+    print(f"  Ocupacion de la agenda:         {b_ocup:5.1f}%")
+    e_media, _, _ = ci95(resultados_base["espera_media"])
+    e_p90, _, _ = ci95(resultados_base["espera_p90"])
+    e_p95, _, _ = ci95(resultados_base["espera_p95"])
+    e_max, _, _ = ci95(resultados_base["espera_max"])
+    p15, _, _ = ci95(resultados_base["pct_retraso_15"])
+    p30, _, _ = ci95(resultados_base["pct_retraso_30"])
+    print(f"  Espera media / P90 / P95 / max: {e_media:.1f} / {e_p90:.1f} / {e_p95:.1f} / {e_max:.1f} min")
+    print(f"  Pacientes con retraso >15min / >30min: {p15:.1f}% / {p30:.1f}%")
 
     for umbral in args.umbrales:
         datos = resultados[umbral]
+        m_modelo = metricas_modelo(df, modelo, umbral)
+
         media_extra, low_extra, high_extra = ci95(datos["extra"])
         media_over = float(np.mean(datos["overbookings"]))
-        contencion = (media_extra / media_over * 100) if media_over > 0 else 0.0
+        media_colisiones = float(np.mean(datos["colisiones"]))
+        pct_colisiones = (media_colisiones / media_over * 100) if media_over > 0 else 0.0
+        contencion_over = (media_extra / media_over * 100) if media_over > 0 else 0.0
+        contencion_total = (media_extra / b_perdidos * 100) if b_perdidos > 0 else 0.0
         media_p90 = float(np.mean(datos["p90_delta"]))
+
+        ia_citados, ia_cit_low, ia_cit_high = ci95(datos["citados"])
+        ia_atendidos, ia_at_low, ia_at_high = ci95(datos["atendidos"])
+        ia_noshows, _, _ = ci95(datos["no_shows_reales"])
+        ia_pct_noshows, _, _ = ci95(datos["pct_no_shows"])
+        ia_ocup = ia_atendidos / CAPACIDAD_PRIMARIA_MES * 100
+        ia_fuera_horario, _, _ = ci95(datos["fuera_de_horario"])
+        horas_extra = ia_fuera_horario * SLOT_MINUTES / 60.0
+
+        ia_e_media, _, _ = ci95(datos["espera_media"])
+        ia_e_p95, _, _ = ci95(datos["espera_p95"])
+        ia_e_max, _, _ = ci95(datos["espera_max"])
+        ia_p15, _, _ = ci95(datos["pct_retraso_15"])
+        ia_p30, _, _ = ci95(datos["pct_retraso_30"])
+
         ahorro_medio = media_extra * coste_slot
         ahorro_low = low_extra * coste_slot
         ahorro_high = high_extra * coste_slot
 
-        print(f"\n--- Umbral {umbral:.2f} ---")
-        print(f"  Huecos recuperados/mes:        {media_extra:6.1f}  (IC95% [{low_extra:.1f} - {high_extra:.1f}])")
-        print(f"  Overbookings programados/mes:  {media_over:6.1f}")
-        print(f"  Contencion (recuperados/overbookings): {contencion:5.1f}%")
-        print(f"  Delta P90 tiempo de espera vs. sin IA: {media_p90:+5.1f} min")
+        print("\n" + "=" * 78)
+        print(f"UMBRAL {umbral:.2f} ({args.realizaciones} meses independientes, IC95%)")
+        print("=" * 78)
+
+        print("\n  -- Calidad del modelo en este umbral (dataset historico completo) --")
+        print(f"  Precision: {m_modelo['precision']*100:5.1f}%   Recall (sensibilidad): {m_modelo['recall']*100:5.1f}%")
+        print(f"  Tasa de falsos positivos: {m_modelo['fpr']*100:5.1f}%   F1: {m_modelo['f1']*100:5.1f}%")
+
+        print("\n  -- Volumen --")
+        print(f"  Pacientes citados/mes:          {fmt_ci(ia_citados, ia_cit_low, ia_cit_high)}")
+        print(f"  Pacientes atendidos/mes:        {fmt_ci(ia_atendidos, ia_at_low, ia_at_high)}")
+        print(f"  No-shows reales/mes:            {ia_noshows:6.1f}  ({ia_pct_noshows:.1f}% de los citados)")
+        print(f"  Ocupacion de la agenda:         {ia_ocup:5.1f}%")
+
+        print("\n  -- Overbooking --")
+        print(f"  Huecos recuperados/mes:         {fmt_ci(media_extra, low_extra, high_extra)}")
+        print(f"  Overbookings programados/mes:   {media_over:6.1f}")
+        print(f"  Colisiones reales/mes (ambos se presentan): {media_colisiones:5.1f}  ({pct_colisiones:.1f}% de los overbookings)")
+        print(f"  Contencion vs. overbookings programados: {contencion_over:5.1f}%")
+        print(f"  Contencion vs. huecos totales perdidos por no-show: {contencion_total:5.1f}%")
+
+        print("\n  -- Tiempos de espera --")
+        print(f"  Delta P90 vs. sin IA:            {media_p90:+5.1f} min")
+        print(f"  Espera media / P95 / max:        {ia_e_media:.1f} / {ia_e_p95:.1f} / {ia_e_max:.1f} min")
+        print(f"  Pacientes con retraso >15min / >30min: {ia_p15:.1f}% / {ia_p30:.1f}%")
+        print(f"  Atendidos fuera de horario (bloque informes): {ia_fuera_horario:.1f}/mes (~{horas_extra:.1f}h extra medico/mes)")
+
+        print("\n  -- Economico --")
         print(f"  Ahorro mensual ({COSTE_HORA_MEDICO:.0f} EUR/h medico): {ahorro_medio:8,.0f} EUR  (IC95% [{ahorro_low:,.0f} - {ahorro_high:,.0f}])")
-        print(f"  Impacto anual proyectado:      {ahorro_medio * 12:8,.0f} EUR  (IC95% [{ahorro_low * 12:,.0f} - {ahorro_high * 12:,.0f}])")
+        print(f"  Impacto anual proyectado:       {ahorro_medio * 12:8,.0f} EUR  (IC95% [{ahorro_low * 12:,.0f} - {ahorro_high * 12:,.0f}])")
 
     print("\n" + "=" * 78)
     print("Metodologia: media +/- IC95% de N realizaciones (meses) independientes,")
     print("no un unico run suelto. Mismo criterio que 'Claude outputs/datos_tecnicos_completados.md'.")
+    print("Precision/recall/F1 se calculan sobre el dataset historico completo con ese")
+    print("umbral como corte de decision, no sobre la simulacion de agenda.")
 
 
 if __name__ == "__main__":
